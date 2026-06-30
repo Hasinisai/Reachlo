@@ -6,6 +6,7 @@ from app.security import decode_access_token
 from app.models import User
 
 reusable_oauth2 = HTTPBearer()
+optional_oauth2 = HTTPBearer(auto_error=False)
 
 def get_current_user(
     db: Session = Depends(get_db),
@@ -30,3 +31,21 @@ def get_current_user(
         raise credentials_exception
         
     return user
+
+
+def get_optional_current_user(
+    db: Session = Depends(get_db),
+    token: HTTPAuthorizationCredentials | None = Depends(optional_oauth2)
+) -> User | None:
+    if token is None:
+        return None
+
+    payload = decode_access_token(token.credentials)
+    if payload is None:
+        return None
+
+    email: str | None = payload.get("sub")
+    if email is None:
+        return None
+
+    return db.query(User).filter(User.email == email).first()

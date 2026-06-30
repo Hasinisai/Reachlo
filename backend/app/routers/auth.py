@@ -32,7 +32,7 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)):
     )
     db.add(new_user)
     db.commit()
-    db.refresh(new_user)
+    new_user = db.query(User).filter(User.email == user_in.email.lower()).first()
 
     # If the user is a SELLER, auto-initialize a default business profile for them
     if new_user.role == "SELLER":

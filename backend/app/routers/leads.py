@@ -4,7 +4,7 @@ from typing import List, Optional
 from app.database import get_db
 from app.models import User, Business, Campaign, Lead
 from app.schemas import LeadCreate, LeadUpdate, LeadResponse
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_optional_current_user
 
 router = APIRouter(prefix="/leads", tags=["Leads"])
 
@@ -13,7 +13,7 @@ def create_lead(
     campaign_id: str,
     lead_in: LeadCreate,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user)
+    current_user: Optional[User] = Depends(get_optional_current_user)
 ):
     campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
     if not campaign:
@@ -21,9 +21,19 @@ def create_lead(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Campaign not found."
         )
+
+    if current_user:
+        existing_lead = db.query(Lead).filter(
+            Lead.campaign_id == campaign_id,
+            Lead.buyer_id == current_user.id
+        ).first()
+        if existing_lead:
+            res = LeadResponse.from_orm(existing_lead)
+            res.campaign_title = campaign.title
+            return res
         
-    # Increment campaign lead count
-    campaign.lead_count += 1
+    # Older campaign rows can have NULL counters; treat them as zero.
+    campaign.lead_count = (campaign.lead_count or 0) + 1
     
     new_lead = Lead(
         campaign_id=campaign_id,

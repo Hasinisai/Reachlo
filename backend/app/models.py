@@ -1,16 +1,18 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Boolean, Integer, Float, ForeignKey, DateTime, Text
+from sqlalchemy import Column, String, Boolean, Integer, Float, ForeignKey, DateTime, Text, Numeric
 from sqlalchemy.orm import relationship
 from app.database import Base
 
 def generate_uuid():
-    return str(uuid.uuid4())
+    # The existing MySQL schema uses VARCHAR(10) id columns.
+    return uuid.uuid4().hex[:10]
 
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(String(36), primary_key=True, default=generate_uuid)
+    user_no = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(String(36), unique=True, index=True, default=generate_uuid)
     name = Column(String(100), nullable=False)
     email = Column(String(150), unique=True, index=True, nullable=False)
     phone = Column(String(20), nullable=False)
@@ -34,7 +36,8 @@ class User(Base):
 class Business(Base):
     __tablename__ = "businesses"
 
-    id = Column(String(36), primary_key=True, default=generate_uuid)
+    business_no = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(String(36), unique=True, index=True, default=generate_uuid)
     user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
     name = Column(String(150), nullable=False)
     category = Column(String(100), nullable=False)
@@ -60,7 +63,8 @@ class Business(Base):
 class Campaign(Base):
     __tablename__ = "campaigns"
 
-    id = Column(String(36), primary_key=True, default=generate_uuid)
+    campaign_no = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(String(36), unique=True, index=True, default=generate_uuid)
     business_id = Column(String(36), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False)
     title = Column(String(150), nullable=False)
     description = Column(Text, nullable=False)
@@ -71,8 +75,13 @@ class Campaign(Base):
     cta_value = Column(String(255), nullable=True)
     city = Column(String(100), nullable=False)
     area = Column(String(100), nullable=True)
-    category = Column(String(100), nullable=False)
+    category = Column(String(150), nullable=False)
     target_audience = Column(String(255), nullable=True)
+    # Optional exact business location
+    location_address = Column(Text, nullable=True)
+    latitude = Column(Numeric(10, 8), nullable=True)
+    longitude = Column(Numeric(11, 8), nullable=True)
+    google_place_id = Column(String(255), nullable=True)
     start_date = Column(DateTime, default=datetime.utcnow)
     end_date = Column(DateTime, nullable=True)
     status = Column(String(20), default="ACTIVE") # ACTIVE, DRAFT, EXPIRED, DELETED
@@ -95,7 +104,8 @@ class Campaign(Base):
 class Lead(Base):
     __tablename__ = "leads"
 
-    id = Column(String(36), primary_key=True, default=generate_uuid)
+    lead_no = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(String(36), unique=True, index=True, default=generate_uuid)
     campaign_id = Column(String(36), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False)
     buyer_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     name = Column(String(100), nullable=False)
@@ -115,7 +125,8 @@ class Lead(Base):
 class CampaignView(Base):
     __tablename__ = "campaign_views"
 
-    id = Column(String(36), primary_key=True, default=generate_uuid)
+    view_no = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(String(36), unique=True, index=True, default=generate_uuid)
     campaign_id = Column(String(36), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False)
     viewer_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -128,7 +139,8 @@ class CampaignView(Base):
 class SavedCampaign(Base):
     __tablename__ = "saved_campaigns"
 
-    id = Column(String(36), primary_key=True, default=generate_uuid)
+    save_no = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(String(36), unique=True, index=True, default=generate_uuid)
     buyer_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     campaign_id = Column(String(36), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False)
     saved_at = Column(DateTime, default=datetime.utcnow)

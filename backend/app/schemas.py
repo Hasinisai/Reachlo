@@ -80,6 +80,11 @@ class CampaignCreate(BaseModel):
     price_min: Optional[float] = None
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
+    # Optional exact location
+    location_address: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    google_place_id: Optional[str] = None
 
 class CampaignUpdate(BaseModel):
     title: Optional[str] = None
@@ -98,6 +103,10 @@ class CampaignUpdate(BaseModel):
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     status: Optional[str] = None
+    location_address: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    google_place_id: Optional[str] = None
 
 class CampaignResponse(BaseModel):
     id: str
@@ -123,6 +132,10 @@ class CampaignResponse(BaseModel):
     view_count: Optional[int] = 0
     lead_count: Optional[int] = 0
     created_at: datetime
+    location_address: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    google_place_id: Optional[str] = None
     business_name: Optional[str] = None
     business_verified: Optional[bool] = False
 
