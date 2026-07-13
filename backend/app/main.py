@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base
 from app.migrations import run_migrations
 from app.routers import auth, campaigns, leads, businesses, upload
+from app.routers import ai
 
 # Create database tables automatically
 Base.metadata.create_all(bind=engine)
@@ -18,8 +19,9 @@ app = FastAPI(
 from fastapi.staticfiles import StaticFiles
 import os
 
-# Create uploads dir if it doesn't exist
+# Create required directories if they don't exist
 os.makedirs("uploads", exist_ok=True)
+os.makedirs("uploads/ai-thumbnails", exist_ok=True)
 
 # Configure CORS so mobile devices and web clients can access the APIs
 app.add_middleware(
@@ -30,7 +32,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount static files for uploads
+# Mount static files for uploads (including AI-generated thumbnails)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # Register routers
@@ -39,6 +41,7 @@ app.include_router(campaigns.router, prefix="/api")
 app.include_router(leads.router, prefix="/api")
 app.include_router(businesses.router, prefix="/api")
 app.include_router(upload.router, prefix="/api")
+app.include_router(ai.router, prefix="/api")
 
 @app.get("/")
 def read_root():

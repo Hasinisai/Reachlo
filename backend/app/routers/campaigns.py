@@ -109,12 +109,9 @@ def _enrich_campaign_response(campaign: Campaign, business: Optional[Business] =
         image_urls=urls,
         cta_type=campaign.cta_type,
         cta_value=campaign.cta_value,
-        city=campaign.city,
-        area=campaign.area,
         category=campaign.category,
         target_audience=campaign.target_audience,
         price=campaign.price,
-        price_min=campaign.price_min,
         start_date=campaign.start_date,
         end_date=campaign.end_date,
         status=campaign.status,
@@ -167,7 +164,7 @@ def get_nearby_campaigns(
     distance_expr = 6371.0 * func.acos(clamped)
 
     try:
-        # Fetch active campaigns within the radius, ordered by distance
+        # Fetch active, non-expired campaigns within the radius, ordered by distance
         results = (
             db.query(Campaign, distance_expr.label("distance"))
             .join(Business)
@@ -176,7 +173,8 @@ def get_nearby_campaigns(
                 Campaign.latitude.isnot(None),
                 Campaign.longitude.isnot(None),
                 Campaign.image_url.isnot(None),
-                distance_expr <= radius_km
+                distance_expr <= radius_km,
+                (Campaign.end_date.is_(None)) | (Campaign.end_date >= datetime.utcnow())
             )
             .order_by(distance_expr.asc())
             .limit(max_results)
@@ -337,6 +335,7 @@ def get_campaigns(
             Campaign.status == "ACTIVE",
             Campaign.image_url.isnot(None),
             Campaign.image_url != "",
+            (Campaign.end_date.is_(None)) | (Campaign.end_date >= datetime.utcnow())
         )
 
         if category and category != "All":
@@ -354,10 +353,11 @@ def filter_active_campaigns(
     campaign_ids: List[str],
     db: Session = Depends(get_db)
 ):
-    """Takes a list of campaign IDs and returns only those that are still ACTIVE."""
+    """Takes a list of campaign IDs and returns only those that are still ACTIVE and not expired."""
     active_ids = db.query(Campaign.id).filter(
         Campaign.id.in_(campaign_ids),
-        Campaign.status == "ACTIVE"
+        Campaign.status == "ACTIVE",
+        (Campaign.end_date.is_(None)) | (Campaign.end_date >= datetime.utcnow())
     ).all()
     return [r[0] for r in active_ids]
 
@@ -392,12 +392,9 @@ def create_campaign(
         image_urls=stored_urls,
         cta_type=campaign_in.cta_type or "WhatsApp",
         cta_value=campaign_in.cta_value or business.whatsapp_number or current_user.phone,
-        city=campaign_in.city or business.city,
-        area=campaign_in.area or business.area,
         category=campaign_in.category or business.category,
         target_audience=campaign_in.target_audience,
         price=campaign_in.price,
-        price_min=campaign_in.price_min,
         start_date=campaign_in.start_date.replace(tzinfo=None) if campaign_in.start_date else datetime.utcnow(),
         end_date=campaign_in.end_date.replace(tzinfo=None) if campaign_in.end_date else None,
         # optional location fields

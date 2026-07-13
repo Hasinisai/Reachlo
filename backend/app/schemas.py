@@ -9,9 +9,20 @@ class UserRegister(BaseModel):
     phone: str = Field(..., min_length=10, max_length=20)
     password: str = Field(..., min_length=8)
     role: str = Field("BUYER", pattern="^(BUYER|SELLER|ADMIN)$")
-    city: str
+    # city is kept optional for backward compat with existing buyer registration frontend
+    # For SELLER: city is extracted from location_address server-side
+    city: Optional[str] = None
     area: Optional[str] = None
-    company_name: Optional[str] = None  # Brand/company name for SELLER accounts
+    # Seller-specific fields (only used when role=SELLER)
+    company_name: Optional[str] = None               # Brand/company name for SELLER accounts
+    # business_description: "What does your business provide?" — feeds AI generation
+    # DISTINCT from campaign description which is per-campaign marketing copy
+    business_description: Optional[str] = None
+    usp: Optional[str] = None                        # Unique Selling Proposition
+    # Business location (from location picker in Step 2 of seller registration)
+    location_address: Optional[str] = None           # Human-readable full address for display
+    latitude: Optional[float] = None                 # GPS lat — for Haversine distance queries
+    longitude: Optional[float] = None                # GPS lng
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -23,68 +34,72 @@ class UserResponse(BaseModel):
     email: str
     phone: str
     role: str
-    city: str
-    area: Optional[str] = None
     is_active: bool
     created_at: datetime
 
     class Config:
         from_attributes = True
 
+class UserUpdate(BaseModel):
+    """For updating personal details from the profile edit page."""
+    name: Optional[str] = None
+    phone: Optional[str] = None
+
 # --- BUSINESS SCHEMAS ---
 class BusinessResponse(BaseModel):
     id: str
     user_id: str
     name: str
-    category: str
-    sub_category: Optional[str] = None
-    description: Optional[str] = None
-    logo_url: Optional[str] = None
-    city: str
-    area: Optional[str] = None
+    # business_description: what the business provides — feeds AI
+    # NOTE: not the same as campaigns.description (per-campaign marketing copy)
+    business_description: Optional[str] = None
+    usp: Optional[str] = None
+    city: Optional[str] = None
+    location_address: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     website_url: Optional[str] = None
     whatsapp_number: Optional[str] = None
     verified: bool
     rating: float
     rating_count: int
-    created_at: datetime
 
     class Config:
         from_attributes = True
 
 class BusinessUpdate(BaseModel):
     name: Optional[str] = None
-    category: Optional[str] = None
-    sub_category: Optional[str] = None
-    description: Optional[str] = None
-    logo_url: Optional[str] = None
+    business_description: Optional[str] = None
+    usp: Optional[str] = None
     city: Optional[str] = None
-    area: Optional[str] = None
+    location_address: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     website_url: Optional[str] = None
     whatsapp_number: Optional[str] = None
 
 # --- CAMPAIGN SCHEMAS ---
 class CampaignCreate(BaseModel):
     title: str = Field(..., max_length=150)
+    # description: per-campaign marketing copy — DISTINCT from business.business_description
     description: str
     offer: str = Field(..., max_length=150)
     image_url: Optional[str] = None
     image_urls: Optional[List[str]] = None
     cta_type: Optional[str] = None
     cta_value: Optional[str] = None
-    city: str
-    area: Optional[str] = None
-    category: str
+    category: Optional[str] = None
     target_audience: Optional[str] = None
     price: Optional[float] = None
-    price_min: Optional[float] = None
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
+    target_cities: Optional[str] = None
     # Optional exact location
     location_address: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     google_place_id: Optional[str] = None
+    ai_generated: Optional[bool] = False
 
 class CampaignUpdate(BaseModel):
     title: Optional[str] = None
@@ -94,12 +109,10 @@ class CampaignUpdate(BaseModel):
     image_urls: Optional[List[str]] = None
     cta_type: Optional[str] = None
     cta_value: Optional[str] = None
-    city: Optional[str] = None
-    area: Optional[str] = None
     category: Optional[str] = None
     target_audience: Optional[str] = None
+    target_cities: Optional[str] = None
     price: Optional[float] = None
-    price_min: Optional[float] = None
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     status: Optional[str] = None
@@ -118,12 +131,10 @@ class CampaignResponse(BaseModel):
     image_urls: Optional[List[str]] = None
     cta_type: Optional[str] = None
     cta_value: Optional[str] = None
-    city: str
-    area: Optional[str] = None
-    category: str
+    category: Optional[str] = None
     target_audience: Optional[str] = None
+    target_cities: Optional[str] = None
     price: Optional[float] = None
-    price_min: Optional[float] = None
     start_date: datetime
     end_date: Optional[datetime] = None
     status: str
@@ -138,6 +149,7 @@ class CampaignResponse(BaseModel):
     google_place_id: Optional[str] = None
     business_name: Optional[str] = None
     business_verified: Optional[bool] = False
+    ai_generated: Optional[bool] = False
 
     class Config:
         from_attributes = True
@@ -175,3 +187,62 @@ class Token(BaseModel):
     token_type: str
     role: str
     user: UserResponse
+
+# --- AI CAMPAIGN GENERATION SCHEMAS ---
+
+class AIGenerateRequest(BaseModel):
+    """Seller inputs for triggering AI campaign generation."""
+    campaign_topic: str = Field(..., min_length=5, max_length=500,
+                                description="What is this campaign promoting? Be specific.")
+    price_or_deal: Optional[str] = Field(None, max_length=255,
+                                         description="Optional price or deal to highlight")
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    target_cities: Optional[str] = None
+
+class AIPublishRequest(BaseModel):
+    """
+    Editable fields the seller may have changed in the draft review screen.
+    All fields are optional — only send what changed. draft_id comes from URL path.
+    """
+    title: Optional[str] = Field(None, max_length=200)
+    # campaign_description: the per-campaign marketing copy to be stored in campaigns.description
+    campaign_description: Optional[str] = None
+    offer: Optional[str] = Field(None, max_length=255)
+    cta_type: Optional[str] = None
+    cta_value: Optional[str] = None
+    target_audience: Optional[str] = None
+    target_cities: Optional[str] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    image_url: Optional[str] = None   # In case image was regenerated
+    price: Optional[float] = None     # Exact campaign price set by seller (₹ value)
+
+class AICampaignDraftResponse(BaseModel):
+    """Response returned after generation — includes all content + warnings."""
+    id: str
+    business_id: str
+    campaign_topic: str
+    price_or_deal: Optional[str] = None
+    price: Optional[float] = None                # Exact price set by seller (₹ value)
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    title: Optional[str] = None
+    # campaign_description: per-campaign AI-generated copy
+    # Will be stored as campaigns.description when published
+    campaign_description: Optional[str] = None
+    offer: Optional[str] = None
+    cta_type: Optional[str] = None
+    cta_value: Optional[str] = None
+    target_audience: Optional[str] = None
+    target_cities: Optional[str] = None
+    image_url: Optional[str] = None
+    market_signals_used: Optional[str] = None   # JSON string
+    hallucination_warnings: Optional[str] = None # JSON string
+    ai_pipeline_stages: Optional[str] = None     # JSON string: full reasoning chain (marketing_strategy, buyer_psychology, creative_brief)
+    status: str
+    campaign_id: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
