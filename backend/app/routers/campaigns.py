@@ -341,7 +341,7 @@ def get_campaigns(
         if category and category != "All":
             query = query.filter(Campaign.category == category)
         if city:
-            query = query.filter(Campaign.city == city)
+            query = query.filter(Business.city == city)
 
     campaigns = query.order_by(Campaign.is_boosted.desc(), Campaign.created_at.desc()).all()
 

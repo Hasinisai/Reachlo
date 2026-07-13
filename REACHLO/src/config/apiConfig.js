@@ -13,9 +13,9 @@ import Constants from 'expo-constants';
 // use the platform-appropriate local dev host.
 const PORT = '8000';
 
-const FULL_URL_OVERRIDE = Constants.expoConfig?.extra?.apiUrl || Constants.manifest?.extra?.apiUrl || null;
+const FULL_URL_OVERRIDE = null; // or Constants.expoConfig?.extra?.apiUrl
 
-const HOST_OVERRIDE = Constants.expoConfig?.extra?.apiHost || Constants.manifest?.extra?.apiHost || null;
+const HOST_OVERRIDE = null; // Hardcoded for local testing, originally Constants.expoConfig?.extra?.apiHost
 
 const extractHost = (url) => {
   if (!url) return null;
@@ -38,7 +38,7 @@ const getDevHost = () => {
 
 const DEV_HOST = getDevHost();
 
-const BASE_URL = FULL_URL_OVERRIDE ? `${FULL_URL_OVERRIDE}/api` : `http://${DEV_HOST}:${PORT}/api`;
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL || (FULL_URL_OVERRIDE ? `${FULL_URL_OVERRIDE}/api` : `http://${DEV_HOST}:${PORT}/api`);
 const MEDIA_BASE_URL = FULL_URL_OVERRIDE ? FULL_URL_OVERRIDE : `http://${DEV_HOST}:${PORT}`;
 
 if (__DEV__) {
