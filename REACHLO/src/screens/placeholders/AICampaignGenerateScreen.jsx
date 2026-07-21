@@ -35,6 +35,7 @@ import COLORS from '../../constants/colors';
 import { FONT_SIZES, FONT_WEIGHTS } from '../../constants/typography';
 import PrimaryButton from '../../components/PrimaryButton';
 import Toast from '../../components/Toast';
+import BusinessLocationPicker from '../../components/BusinessLocationPicker';
 import apiService from '../../services/apiService';
 import INDIAN_CITIES from '../../constants/indianCities';
 
@@ -64,6 +65,8 @@ export default function AICampaignGenerateScreen({ navigation }) {
   const cityInputRef = useRef(null);
 
   const [exactPrice, setExactPrice] = useState('');
+
+  const [locationData, setLocationData] = useState(null); // { address, latitude, longitude }
 
   const [loading, setLoading] = useState(false);
   const [loadingStatusIndex, setLoadingStatusIndex] = useState(0);
@@ -182,6 +185,9 @@ export default function AICampaignGenerateScreen({ navigation }) {
         start_date: startDate.toISOString(),
         end_date: endDate.toISOString(),
         target_cities: targetCitiesStr,
+        location_address: locationData?.address || null,
+        latitude: locationData?.latitude || null,
+        longitude: locationData?.longitude || null,
       });
 
       navigation.replace('AIDraftReview', { 
@@ -422,6 +428,20 @@ export default function AICampaignGenerateScreen({ navigation }) {
                     onChangeText={setExactPrice}
                   />
                   <Text style={styles.helperText}>This will be shown on your campaign card after publishing.</Text>
+                </View>
+
+                {/* Business Location */}
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.fieldLabel}>
+                    Business Location <Text style={styles.optionalTag}>(optional)</Text>
+                  </Text>
+                  <Text style={styles.helperText}>Pinpoint your exact location for local buyers.</Text>
+                  <View style={{ marginTop: 8 }}>
+                    <BusinessLocationPicker
+                      onLocationConfirmed={(data) => setLocationData(data)}
+                      initialAddress=""
+                    />
+                  </View>
                 </View>
 
               </View>

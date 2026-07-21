@@ -14,6 +14,9 @@ import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import SellerProfileScreen from '../screens/placeholders/SellerProfileScreen';
 import AICampaignGenerateScreen from '../screens/placeholders/AICampaignGenerateScreen';
 import AIDraftReviewScreen from '../screens/placeholders/AIDraftReviewScreen';
+import ChatScreen from '../screens/placeholders/ChatScreen';
+import SellerMessagesScreen from '../screens/placeholders/SellerMessagesScreen';
+import BuyerInboxScreen from '../screens/placeholders/BuyerInboxScreen';
 
 const Stack = createStackNavigator();
 
@@ -68,13 +71,8 @@ export default function AppNavigator() {
         component={SellerRegisterStep2Screen}
         options={{ cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS }}
       />
-      <Stack.Screen
-        name="ForgotPassword"
-        component={ForgotPasswordScreen}
-        options={{ cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS }}
-      />
 
-      {/* Dashboards */}
+      {/* Main Dashboards */}
       <Stack.Screen
         name="SellerDashboard"
         component={SellerDashboardScreen}
@@ -85,28 +83,51 @@ export default function AppNavigator() {
         component={DiscoveryFeedScreen}
         options={{ cardStyleInterpolator: CardStyleInterpolators.forFadeFromCenter }}
       />
+      {/* Admin */}
       <Stack.Screen
         name="AdminDashboard"
         component={AdminDashboardScreen}
         options={{ cardStyleInterpolator: CardStyleInterpolators.forFadeFromCenter }}
       />
 
-      {/* Seller Profile Edit */}
+      {/* Other App Screens */}
+      <Stack.Screen
+        name="ForgotPassword"
+        component={ForgotPasswordScreen}
+        options={{ cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS }}
+      />
       <Stack.Screen
         name="SellerProfile"
         component={SellerProfileScreen}
         options={{ cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS }}
       />
 
-      {/* AI Campaign Generation flow */}
+      {/* New AI Generation Flow */}
       <Stack.Screen
-        name="AIGenerate"
+        name="AICampaignGenerate"
         component={AICampaignGenerateScreen}
-        options={{ cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS }}
+        options={{ cardStyleInterpolator: CardStyleInterpolators.forVerticalIOS }}
       />
       <Stack.Screen
         name="AIDraftReview"
         component={AIDraftReviewScreen}
+        options={{ cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS }}
+      />
+
+      {/* Chat Screens */}
+      <Stack.Screen
+        name="ChatScreen"
+        component={ChatScreen}
+        options={{ cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS }}
+      />
+      <Stack.Screen
+        name="SellerMessages"
+        component={SellerMessagesScreen}
+        options={{ cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS }}
+      />
+      <Stack.Screen
+        name="BuyerInbox"
+        component={BuyerInboxScreen}
         options={{ cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS }}
       />
     </Stack.Navigator>

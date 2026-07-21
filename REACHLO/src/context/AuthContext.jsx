@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import authService from '../services/authService';
 import { reset } from '../navigation/navigationRef';
+import { registerForPushNotificationsAsync } from '../services/pushRegistration';
 
 export const AuthContext = createContext({
   user: null,
@@ -29,6 +30,8 @@ export const AuthProvider = ({ children }) => {
           setToken(storedToken);
           setRole(storedRole);
           setUser(storedUser);
+          // Register for push notifications since we have a logged-in user
+          registerForPushNotificationsAsync();
         }
       } catch (e) {
         console.error('Failed to load auth data', e);
@@ -45,6 +48,8 @@ export const AuthProvider = ({ children }) => {
     setToken(response.token);
     setRole(response.role);
     setUser(response.user);
+    // Register push token after explicit login
+    registerForPushNotificationsAsync();
     return response;
   };
 
@@ -53,6 +58,8 @@ export const AuthProvider = ({ children }) => {
     setToken(response.token);
     setRole(response.role);
     setUser(response.user);
+    // Register push token after explicit register
+    registerForPushNotificationsAsync();
     return response;
   };
 
@@ -63,6 +70,7 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     reset('Splash');
   };
+
 
   const updateUserProfile = (newDetails) => {
     setUser(prev => prev ? { ...prev, ...newDetails } : prev);

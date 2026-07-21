@@ -34,20 +34,30 @@ class ApiService {
       headers,
     };
 
-    if (config.body && typeof config.body === 'object' && !(config.body instanceof FormData)) {
+    const isFormDataBody = config.body && (config.body instanceof FormData || typeof config.body.append === 'function');
+
+    if (config.body && typeof config.body === 'object' && !isFormDataBody) {
       config.body = JSON.stringify(config.body);
     }
 
-    if (config.body instanceof FormData) {
+    if (isFormDataBody) {
       delete headers['Content-Type'];
     }
 
     try {
-      const controller = new AbortController();
+      const isFormData = config.body && (config.body instanceof FormData || config.body.append);
       const timeout = API_CONFIG.TIMEOUT ?? 10000;
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
-      const response = await fetch(url, { ...config, signal: controller.signal });
-      clearTimeout(timeoutId);
+      
+      let response;
+      if (isFormData) {
+        // React Native fetch + AbortController + FormData often instantly fails on Android
+        response = await fetch(url, config);
+      } else {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+        response = await fetch(url, { ...config, signal: controller.signal });
+        clearTimeout(timeoutId);
+      }
 
       let data = null;
       const contentType = response.headers.get('content-type');
