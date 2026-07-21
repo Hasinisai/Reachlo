@@ -112,6 +112,118 @@ const SERVICES_DATA = [
       'DJ Services',
       'Birthday Event Packages'
     ]
+  },
+  {
+    id: 'realestate',
+    title: 'Real Estate',
+    icon: require('../../../assets/ICONS/CATEGORY/real_estate.png'),
+    offersCount: 38,
+    subServices: [
+      'Property Sales',
+      'Rental Services',
+      'PG & Hostels',
+      'Commercial Spaces',
+      'Interior Design',
+      'Vastu Consultation'
+    ]
+  },
+  {
+    id: 'transport',
+    title: 'Transport & Delivery',
+    icon: require('../../../assets/ICONS/CATEGORY/transport.png'),
+    offersCount: 52,
+    subServices: [
+      'Peer-to-Peer Parcel Delivery',
+      'Courier Services',
+      'Packers & Movers',
+      'Cab Services',
+      'Bike Taxi',
+      'Freight Transport'
+    ]
+  },
+  {
+    id: 'auto',
+    title: 'Automotive',
+    icon: require('../../../assets/ICONS/CATEGORY/automotive.png'),
+    offersCount: 41,
+    subServices: [
+      'Car Service & Repair',
+      'Bike Service',
+      'Car Wash & Detailing',
+      'Driving Schools',
+      'Vehicle Insurance',
+      'Spare Parts'
+    ]
+  },
+  {
+    id: 'finance',
+    title: 'Finance',
+    icon: require('../../../assets/ICONS/CATEGORY/finance.png'),
+    offersCount: 29,
+    subServices: [
+      'Tax Consultants',
+      'Insurance Agents',
+      'Loan Services',
+      'Investment Advisory',
+      'CA Services',
+      'Mutual Funds'
+    ]
+  },
+  {
+    id: 'legal',
+    title: 'Legal Services',
+    icon: require('../../../assets/ICONS/CATEGORY/legal.png'),
+    offersCount: 18,
+    subServices: [
+      'Lawyers',
+      'Document Services',
+      'Property Registration',
+      'Company Registration',
+      'GST Filing',
+      'Patent & Trademark'
+    ]
+  },
+  {
+    id: 'home',
+    title: 'Home Services',
+    icon: require('../../../assets/ICONS/CATEGORY/home_services.png'),
+    offersCount: 73,
+    subServices: [
+      'Electricians',
+      'Plumbers',
+      'AC Repair',
+      'Painting',
+      'Pest Control',
+      'Cleaning Services'
+    ]
+  },
+  {
+    id: 'travel',
+    title: 'Travel & Tourism',
+    icon: require('../../../assets/ICONS/CATEGORY/travel.png'),
+    offersCount: 34,
+    subServices: [
+      'Travel Agencies',
+      'Tour Packages',
+      'Visa Assistance',
+      'Hotel Booking',
+      'Pilgrimage Tours',
+      'Adventure Activities'
+    ]
+  },
+  {
+    id: 'shopping',
+    title: 'Shopping & Retail',
+    icon: require('../../../assets/ICONS/CATEGORY/shopping.png'),
+    offersCount: 67,
+    subServices: [
+      'Clothing & Fashion',
+      'Electronics',
+      'Grocery Stores',
+      'Jewellery',
+      'Furniture',
+      'Gift Shops'
+    ]
   }
 ];
 
@@ -307,6 +419,14 @@ export default function DiscoveryFeedScreen() {
         else if (categoryName === 'Beauty & Personal Care') serviceId = 'beauty';
         else if (categoryName === 'Food & Restaurants') serviceId = 'food';
         else if (categoryName === 'Events & Entertainment') serviceId = 'events';
+        else if (categoryName === 'Real Estate & Property') serviceId = 'realestate';
+        else if (categoryName === 'Transport & Delivery') serviceId = 'transport';
+        else if (categoryName === 'Automotive Services') serviceId = 'auto';
+        else if (categoryName === 'Finance & Insurance') serviceId = 'finance';
+        else if (categoryName === 'Legal & Compliance') serviceId = 'legal';
+        else if (categoryName === 'Home & Repair Services') serviceId = 'home';
+        else if (categoryName === 'Travel & Tourism') serviceId = 'travel';
+        else if (categoryName === 'Shopping & Retail') serviceId = 'shopping';
         else serviceId = 'other';
         
         return {

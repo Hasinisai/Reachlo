@@ -55,7 +55,15 @@ const CATEGORY_MAP = {
   'Health & Wellness': ['Gyms', 'Fitness Centers', 'Yoga Studios', 'Personal Trainers', 'Nutrition Consultants', 'Physiotherapy Clinics'],
   'Beauty & Personal Care': ['Salons', 'Spas', 'Skin Clinics', 'Hair Treatments', 'Bridal Makeup', 'Grooming Packages'],
   'Food & Restaurants': ['Cafes', 'Restaurants', 'Bakeries', 'Cloud Kitchens', 'Catering Services'],
-  'Events & Entertainment': ['Wedding Planners', 'Event Organizers', 'Photography Services', 'DJ Services', 'Birthday Event Packages']
+  'Events & Entertainment': ['Wedding Planners', 'Event Organizers', 'Photography Services', 'DJ Services', 'Birthday Event Packages'],
+  'Real Estate & Property': ['Property Sales', 'Rental Services', 'PG & Hostels', 'Commercial Spaces', 'Interior Design', 'Vastu Consultation'],
+  'Transport & Delivery': ['Peer-to-Peer Parcel Delivery', 'Courier Services', 'Packers & Movers', 'Cab Services', 'Bike Taxi', 'Freight Transport'],
+  'Automotive Services': ['Car Service & Repair', 'Bike Service', 'Car Wash & Detailing', 'Driving Schools', 'Vehicle Insurance', 'Spare Parts'],
+  'Finance & Insurance': ['Tax Consultants', 'Insurance Agents', 'Loan Services', 'Investment Advisory', 'CA Services', 'Mutual Funds'],
+  'Legal & Compliance': ['Lawyers', 'Document Services', 'Property Registration', 'Company Registration', 'GST Filing', 'Patent & Trademark'],
+  'Home & Repair Services': ['Electricians', 'Plumbers', 'AC Repair', 'Painting', 'Pest Control', 'Cleaning Services'],
+  'Travel & Tourism': ['Travel Agencies', 'Tour Packages', 'Visa Assistance', 'Hotel Booking', 'Pilgrimage Tours', 'Adventure Activities'],
+  'Shopping & Retail': ['Clothing & Fashion', 'Electronics', 'Grocery Stores', 'Jewellery', 'Furniture', 'Gift Shops'],
 };
 const CATEGORIES = Object.keys(CATEGORY_MAP);
 
