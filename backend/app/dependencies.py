@@ -49,3 +49,26 @@ def get_optional_current_user(
         return None
 
     return db.query(User).filter(User.email == email).first()
+
+async def get_ws_current_user(
+    token: str,
+    db: Session = Depends(get_db),
+) -> User:
+    from fastapi import WebSocketException, status
+    exception = WebSocketException(code=status.WS_1008_POLICY_VIOLATION)
+    if not token:
+        raise exception
+    
+    payload = decode_access_token(token)
+    if payload is None:
+        raise exception
+        
+    email: str = payload.get("sub")
+    if email is None:
+        raise exception
+        
+    user = db.query(User).filter(User.email == email).first()
+    if user is None:
+        raise exception
+        
+    return user

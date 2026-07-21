@@ -199,6 +199,9 @@ class AIGenerateRequest(BaseModel):
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     target_cities: Optional[str] = None
+    location_address: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 class AIPublishRequest(BaseModel):
     """
@@ -236,6 +239,9 @@ class AICampaignDraftResponse(BaseModel):
     cta_value: Optional[str] = None
     target_audience: Optional[str] = None
     target_cities: Optional[str] = None
+    location_address: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     image_url: Optional[str] = None
     market_signals_used: Optional[str] = None   # JSON string
     hallucination_warnings: Optional[str] = None # JSON string
@@ -246,3 +252,59 @@ class AICampaignDraftResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# --- CHAT SCHEMAS ---
+
+class ChatThreadCreate(BaseModel):
+    """Payload to open a new chat thread — client sends the lead_id returned by POST /leads."""
+    lead_id: str
+
+class ChatMessageCreate(BaseModel):
+    """Payload to send a new message inside an existing thread."""
+    body: str
+
+class ChatMessageResponse(BaseModel):
+    id: str
+    thread_id: str
+    sender_id: str
+    sender_role: str      # BUYER | SELLER | SYSTEM
+    body: str
+    is_system: bool
+    sender_name: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class ChatThreadResponse(BaseModel):
+    id: str
+    lead_id: str
+    campaign_id: str
+    buyer_id: str
+    seller_id: str
+    last_message_at: datetime
+    last_buyer_message_at: Optional[datetime] = None
+    last_seller_reply_at: Optional[datetime] = None
+    seller_unread_count: int
+    buyer_unread_count: int
+    created_at: datetime
+    # Denormalised display fields populated server-side
+    campaign_title: Optional[str] = None
+    campaign_image_url: Optional[str] = None
+    buyer_name: Optional[str] = None
+    seller_name: Optional[str] = None
+    buyer_phone: Optional[str] = None
+    seller_phone: Optional[str] = None
+    last_message_body: Optional[str] = None
+    total_messages: Optional[int] = 0
+
+    class Config:
+        from_attributes = True
+
+class UnreadCountResponse(BaseModel):
+    unread_count: int
+
+class PushTokenUpdate(BaseModel):
+    """Sent by the client after obtaining an Expo push token."""
+    expo_push_token: str

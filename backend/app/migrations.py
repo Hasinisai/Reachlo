@@ -207,6 +207,55 @@ def run_migrations() -> None:
         if "typical_cta" not in columns:
             alterations.append("ALTER TABLE category_playbooks ADD COLUMN typical_cta VARCHAR(50) NULL")
 
+    # ------------------------------------------------------------------ users (push token)
+    if "users" in table_names:
+        columns = {col["name"] for col in inspector.get_columns("users")}
+        if "expo_push_token" not in columns:
+            alterations.append("ALTER TABLE users ADD COLUMN expo_push_token VARCHAR(255) NULL")
+
+    # ------------------------------------------------------------------ chat_threads (CREATE)
+    if "chat_threads" not in table_names:
+        alterations.append("""
+            CREATE TABLE chat_threads (
+                id VARCHAR(10) PRIMARY KEY,
+                lead_id VARCHAR(10) NOT NULL UNIQUE,
+                campaign_id VARCHAR(10) NOT NULL,
+                buyer_id VARCHAR(10) NOT NULL,
+                seller_id VARCHAR(10) NOT NULL,
+                last_message_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                last_buyer_message_at DATETIME NULL,
+                last_seller_reply_at DATETIME NULL,
+                seller_unread_count INT NOT NULL DEFAULT 1,
+                buyer_unread_count INT NOT NULL DEFAULT 0,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE,
+                FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
+                FOREIGN KEY (buyer_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (seller_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+    else:
+        columns = {col["name"] for col in inspector.get_columns("chat_threads")}
+        if "last_buyer_message_at" not in columns:
+            alterations.append("ALTER TABLE chat_threads ADD COLUMN last_buyer_message_at DATETIME NULL")
+        if "last_seller_reply_at" not in columns:
+            alterations.append("ALTER TABLE chat_threads ADD COLUMN last_seller_reply_at DATETIME NULL")
+
+    # ------------------------------------------------------------------ chat_messages (CREATE)
+    if "chat_messages" not in table_names:
+        alterations.append("""
+            CREATE TABLE chat_messages (
+                id VARCHAR(10) PRIMARY KEY,
+                thread_id VARCHAR(10) NOT NULL,
+                sender_id VARCHAR(10) NOT NULL,
+                sender_role VARCHAR(10) NOT NULL,
+                body TEXT NOT NULL,
+                is_system TINYINT(1) NOT NULL DEFAULT 0,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (thread_id) REFERENCES chat_threads(id) ON DELETE CASCADE,
+                FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
 
     if alterations:
         with engine.begin() as conn:

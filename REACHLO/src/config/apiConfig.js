@@ -39,7 +39,14 @@ const getDevHost = () => {
 const DEV_HOST = getDevHost();
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL || (FULL_URL_OVERRIDE ? `${FULL_URL_OVERRIDE}/api` : `http://${DEV_HOST}:${PORT}/api`);
-const MEDIA_BASE_URL = FULL_URL_OVERRIDE ? FULL_URL_OVERRIDE : `http://${DEV_HOST}:${PORT}`;
+
+let MEDIA_BASE_URL = FULL_URL_OVERRIDE ? FULL_URL_OVERRIDE : `http://${DEV_HOST}:${PORT}`;
+if (process.env.EXPO_PUBLIC_API_URL) {
+  MEDIA_BASE_URL = process.env.EXPO_PUBLIC_API_URL.replace(/\/api\/?$/, '');
+}
+
+const WS_BASE_URL = BASE_URL.replace(/^http/, 'ws');
+
 
 if (__DEV__) {
   console.log('[REACHLO] API base URL:', BASE_URL);
@@ -50,6 +57,7 @@ if (__DEV__) {
 export const API_CONFIG = {
   BASE_URL: BASE_URL,
   MEDIA_BASE_URL: MEDIA_BASE_URL,
+  WS_BASE_URL: WS_BASE_URL,
   TIMEOUT: 60000,
 };
 

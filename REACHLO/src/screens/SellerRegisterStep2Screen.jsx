@@ -17,7 +17,6 @@ import COLORS from '../constants/colors';
 import { FONT_SIZES, FONT_WEIGHTS } from '../constants/typography';
 import PrimaryButton from '../components/PrimaryButton';
 import Toast from '../components/Toast';
-import BusinessLocationPicker from '../components/BusinessLocationPicker';
 import { useAuth } from '../context/AuthContext';
 
 // Step indicator pill (reusable inline)
@@ -43,7 +42,6 @@ export default function SellerRegisterStep2Screen({ route, navigation }) {
   const [businessName, setBusinessName] = useState('');
   const [businessDescription, setBusinessDescription] = useState(''); // "What does your business provide?"
   const [usp, setUsp] = useState('');  // "What makes you different?"
-  const [locationData, setLocationData] = useState(null); // { address, latitude, longitude }
 
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -82,10 +80,6 @@ export default function SellerRegisterStep2Screen({ route, navigation }) {
       errs.businessDescription = 'Please write at least 20 characters';
     }
 
-    if (!locationData) {
-      errs.location = 'Please select your business location';
-    }
-
     setErrors(errs);
 
     // USP nudge (non-blocking) — show once if USP is empty
@@ -117,7 +111,7 @@ export default function SellerRegisterStep2Screen({ route, navigation }) {
         phone: step1Data.phone,
         password: step1Data.password,
         role: 'SELLER',
-        city: locationData?.city || locationData?.address?.split(',')[0]?.trim() || 'Unknown',
+        city: step1Data.city || 'Unknown',
 
         // Step 2 business details
         company_name: businessName.trim(),
@@ -125,9 +119,6 @@ export default function SellerRegisterStep2Screen({ route, navigation }) {
         // DISTINCT from campaigns.description which is per-campaign marketing copy
         business_description: businessDescription.trim(),
         usp: usp.trim() || null,
-        location_address: locationData?.address || null,
-        latitude: locationData?.latitude || null,
-        longitude: locationData?.longitude || null,
       };
 
       const response = await register(registrationPayload);
@@ -225,22 +216,6 @@ export default function SellerRegisterStep2Screen({ route, navigation }) {
               />
               <Text style={styles.helperText}>Write naturally — our AI reads this to understand your business</Text>
               {errors.businessDescription && <Text style={styles.errorText}>{errors.businessDescription}</Text>}
-            </View>
-
-            {/* Business Location */}
-            <View onLayout={(e) => handleLayout('location', e)}>
-              <Text style={styles.fieldLabel}>Business location <Text style={styles.required}>*</Text></Text>
-              <Text style={styles.helperText}>This helps buyers find campaigns near them</Text>
-              <View style={{ marginTop: 8 }}>
-                <BusinessLocationPicker
-                  onLocationConfirmed={(data) => {
-                    setLocationData(data);
-                    if (errors.location) setErrors(p => ({ ...p, location: null }));
-                  }}
-                  initialAddress=""
-                />
-              </View>
-              {errors.location && <Text style={[styles.errorText, { marginTop: 6 }]}>{errors.location}</Text>}
             </View>
 
             {/* USP — Optional */}
