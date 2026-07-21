@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import COLORS from '../../constants/colors';
 import { FONT_SIZES, FONT_WEIGHTS } from '../../constants/typography';
@@ -66,6 +67,35 @@ export default function SellerProfileScreen({ navigation }) {
   const [gstNumber, setGstNumber] = useState('');
   const [locationAddress, setLocationAddress] = useState('');
   const [profileImage, setProfileImage] = useState(null);
+
+  // Chat settings modal
+  const [showChatSettingsModal, setShowChatSettingsModal] = useState(false);
+  const [chatRetention, setChatRetention] = useState('forever');
+  const [savingChatSettings, setSavingChatSettings] = useState(false);
+  
+  useEffect(() => {
+    const loadChatSettings = async () => {
+      try {
+        const val = await AsyncStorage.getItem('chat_retention_policy');
+        if (val) setChatRetention(val);
+      } catch (e) {}
+    };
+    loadChatSettings();
+  }, []);
+  
+  const saveChatSettings = async (policy) => {
+    setSavingChatSettings(true);
+    try {
+      await AsyncStorage.setItem('chat_retention_policy', policy);
+      setChatRetention(policy);
+      showToast('Chat settings updated successfully', 'success');
+      setTimeout(() => setShowChatSettingsModal(false), 500);
+    } catch (e) {
+      showToast('Failed to update chat settings', 'error');
+    } finally {
+      setSavingChatSettings(false);
+    }
+  };
 
   const [locationData, setLocationData] = useState(null);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
@@ -561,6 +591,7 @@ export default function SellerProfileScreen({ navigation }) {
             {/* Account Settings */}
             <Text style={styles.sectionTitle}>Account Settings</Text>
             <View style={styles.card}>
+              <SettingsRow icon="chatbubble-ellipses-outline" title="Chat Settings" onPress={() => setShowChatSettingsModal(true)} />
               <SettingsRow icon="notifications-outline" title="Notifications" onPress={() => showToast('Settings coming soon', 'info')} />
               <SettingsRow icon="moon-outline" title="Dark Mode" onPress={() => showToast('Settings coming soon', 'info')} />
               <SettingsRow icon="language-outline" title="Language" onPress={() => showToast('Settings coming soon', 'info')} />
@@ -630,6 +661,43 @@ export default function SellerProfileScreen({ navigation }) {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Chat Settings Modal */}
+      <Modal visible={showChatSettingsModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Chat Settings</Text>
+              <Pressable onPress={() => setShowChatSettingsModal(false)}>
+                <Ionicons name="close" size={24} color="#0F172A" />
+              </Pressable>
+            </View>
+            <Text style={{ fontSize: 14, color: '#475569', marginBottom: 16 }}>
+              Choose how long your chat history is retained on this device.
+            </Text>
+            
+            {['24h', '1w', '1m', 'forever'].map(policy => (
+              <Pressable 
+                key={policy} 
+                style={[
+                  styles.inputWrapper, 
+                  { marginBottom: 12, paddingHorizontal: 16 },
+                  chatRetention === policy ? { borderColor: '#1A73E8', backgroundColor: '#EFF6FF' } : {}
+                ]}
+                onPress={() => saveChatSettings(policy)}
+              >
+                <Text style={{ flex: 1, fontSize: 15, fontWeight: chatRetention === policy ? '600' : '400', color: '#0F172A' }}>
+                  {policy === '24h' ? '24 Hours' : policy === '1w' ? '1 Week' : policy === '1m' ? '1 Month' : 'Until I clear it (Forever)'}
+                </Text>
+                {chatRetention === policy && (
+                  <Ionicons name="checkmark-circle" size={20} color="#1A73E8" />
+                )}
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }

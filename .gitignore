@@ -18,6 +18,3 @@ backend/uploads/
 
 # Node
 REACHLO/node_modules/
-
-# Scratch / test scripts (local only)
-backend/test_db*.py

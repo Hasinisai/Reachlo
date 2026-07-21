@@ -28,6 +28,8 @@ import { truncateChipLabel } from '../../constants/campaignCardConstants';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
+import { useNavigation } from '@react-navigation/native';
+import chatService from '../../services/chatService';
 import CampaignDetailScreen from './CampaignDetailScreen';
 // Service Data with Emoji icons and offer counts as specified
 const SERVICES_DATA = [
@@ -213,6 +215,7 @@ const CategoryItem = ({ service, isSelected, onPress }) => {
 
 export default function DiscoveryFeedScreen() {
   const { user, logout, updateUserProfile } = useAuth();
+  const navigation = useNavigation();
 
   // Tabs: 'Home' | 'Saved' | 'Profile'
   const [activeTab, setActiveTab] = useState('Home');
@@ -542,7 +545,7 @@ export default function DiscoveryFeedScreen() {
 
   // Helper to log lead in database when buyer connects
   const createLead = async (camp, message) => {
-    await apiService.post(`/leads?campaign_id=${camp.id}`, {
+    return await apiService.post(`/leads?campaign_id=${camp.id}`, {
       name: user?.name || "Anonymous Buyer",
       phone: user?.phone || "0000000000",
       message: message
@@ -569,25 +572,29 @@ export default function DiscoveryFeedScreen() {
   };
 
   const handleQuickEnquire = async (camp) => {
+    if (!user) {
+      Alert.alert('Login Required', 'You must be logged in to chat with sellers.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Login', onPress: () => navigation.navigate('Landing') }
+      ]);
+      return;
+    }
+
     try {
-      await createLead(camp, `Submitted Enquiry for offer: ${camp.offerLine}`);
-      Alert.alert('Enquiry Sent', `Your interest in "${camp.title}" has been successfully sent to ${camp.businessName}! The seller will respond shortly.`);
+      const response = await createLead(camp, `Enquired about: ${camp.offerLine || camp.title}`);
+      if (response && response.id) {
+        const thread = await chatService.createThread(response.id);
+        setSelectedCampaign(null);
+        navigation.navigate('ChatScreen', { threadId: thread.id, campaignId: camp.id });
+      }
     } catch (e) {
-      Alert.alert('Error', 'Could not send enquiry. Please try again.');
+      console.log(e);
+      Alert.alert('Error', 'Could not open chat. Please try again.');
     }
   };
 
   const handleContactSeller = async (camp) => {
-    try {
-      await createLead(camp, `Requested offer via Get This Offer: ${camp.offerLine || camp.title}`);
-      Alert.alert(
-        'Offer Request Sent',
-        `Your interest in "${camp.title}" has been sent to ${camp.businessName}. They will contact you soon.`
-      );
-      setSelectedCampaign(null);
-    } catch (e) {
-      Alert.alert('Error', 'Could not send your offer request. Please try again.');
-    }
+    handleQuickEnquire(camp);
   };
 
   const handleApplyFilters = () => {
@@ -618,14 +625,14 @@ export default function DiscoveryFeedScreen() {
     return campaigns.filter(c => {
       // 1. Matches Search query
       const matchesSearch = searchQuery.trim() === '' || 
-        c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.title && c.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (c.description && c.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (c.businessName && c.businessName.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (c.subService && c.subService.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (c.category && c.category.toLowerCase().includes(searchQuery.toLowerCase()));
 
       // 2. Matches sub-service selection if provided
-      const matchesSubService = !subServiceName || c.subService === subServiceName;
+      const matchesSubService = !subServiceName || (c.subService && c.subService.toLowerCase().trim() === subServiceName.toLowerCase().trim());
 
       // 3. Price Filter (Maximum Limit)
       const matchesPrice = !appliedPrice || c.price <= appliedPrice;
@@ -634,7 +641,7 @@ export default function DiscoveryFeedScreen() {
       const matchesRating = !appliedRating || c.rating >= appliedRating;
 
       // 5. City Filter
-      const matchesCity = !appliedCity || c.city.toLowerCase() === appliedCity.toLowerCase();
+      const matchesCity = !appliedCity || (c.city && c.city.toLowerCase() === appliedCity.toLowerCase());
 
       return matchesSearch && matchesSubService && matchesPrice && matchesRating && matchesCity;
     });
@@ -666,6 +673,12 @@ export default function DiscoveryFeedScreen() {
             <Text style={styles.subtitleHeader}>Discover deals tailored for you</Text>
           </View>
           <View style={styles.headerRight}>
+            <Pressable 
+              style={[styles.headerIconBtn, { marginRight: 8 }]}
+              onPress={() => navigation.navigate('BuyerInbox')}
+            >
+              <Ionicons name="chatbubbles-outline" size={22} color="#2563EB" />
+            </Pressable>
             <Pressable style={styles.headerIconBtn}>
               <Ionicons name="notifications-outline" size={22} color="#2563EB" />
             </Pressable>

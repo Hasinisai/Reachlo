@@ -15,6 +15,7 @@ import {
   Linking,
   PanResponder,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -26,7 +27,9 @@ import PrimaryButton from '../../components/PrimaryButton';
 import InputField from '../../components/InputField';
 import { useAuth } from '../../context/AuthContext';
 import apiService from '../../services/apiService';
-import { resolveMediaUrl } from '../../config/apiConfig';
+import chatService from '../../services/chatService';
+import API_CONFIG, { resolveMediaUrl } from '../../config/apiConfig';
+import * as FileSystem from 'expo-file-system/legacy';
 import ImageCropModal, { smartCenterCrop } from '../../components/ImageCropModal';
 import MapLocationPicker from '../../components/MapLocationPicker';
 import * as Location from 'expo-location';
@@ -180,8 +183,8 @@ function LeadNotificationCard({ lead, onDismiss, onCall, onWhatsApp, onView }) {
               <Text style={styles.notificationActionText}>Call</Text>
             </Pressable>
             <Pressable style={styles.notificationActionBtn} onPress={onWhatsApp}>
-              <Ionicons name="logo-whatsapp" size={16} color="#16A34A" />
-              <Text style={styles.notificationActionText}>WhatsApp</Text>
+              <Ionicons name="chatbubble-ellipses-outline" size={16} color="#3B82F6" />
+              <Text style={styles.notificationActionText}>Chat</Text>
             </Pressable>
             <Pressable style={styles.notificationActionBtn} onPress={onView}>
               <Ionicons name="eye-outline" size={16} color="#2563EB" />
@@ -327,9 +330,11 @@ export default function SellerDashboardScreen({ navigation }) {
     }
   };
 
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
+  useFocusEffect(
+    React.useCallback(() => {
+      loadDashboardData();
+    }, [])
+  );
 
   useEffect(() => {
     const loadBusiness = async () => {
@@ -375,11 +380,25 @@ export default function SellerDashboardScreen({ navigation }) {
     if (lead?.phone) Linking.openURL(`tel:${lead.phone}`);
   };
 
-  const whatsAppLead = (lead) => {
-    if (!lead?.phone) return;
-    const phone = lead.phone.replace(/\D/g, '');
-    const text = encodeURIComponent(`Hi ${lead.name}, thanks for your interest in ${lead.campaignTitle || 'our Reachlo offer'}.`);
-    Linking.openURL(`https://wa.me/91${phone.slice(-10)}?text=${text}`);
+  const chatLead = async (lead) => {
+    try {
+      // Get or create thread
+      const threads = await chatService.getThreads();
+      let thread = threads.find(t => t.lead_id === lead.id);
+      if (!thread) {
+         // Should not happen for seller usually, but just in case
+         thread = await chatService.createThread(lead.id);
+      }
+      const campaign = campaigns.find(c => c.id === lead.campaign_id) || { title: lead.campaignTitle };
+      navigation.navigate('ChatScreen', { 
+        threadId: thread.id, 
+        campaign: campaign, 
+        business: { name: lead.name } // Buyer's name
+      });
+    } catch (e) {
+      console.log('Failed to open chat', e);
+      Alert.alert('Error', 'Could not open chat.');
+    }
   };
 
   const viewLeadDetails = (lead) => {
@@ -392,16 +411,19 @@ export default function SellerDashboardScreen({ navigation }) {
   const markLeadListAsRead = async (leads = []) => {
     const unread = leads.filter(lead => lead.status === 'NEW' && !lead.isRead);
     if (unread.length === 0) return;
+    
+    // Optimistic local update
+    setCampaigns(prev => prev.map(camp => ({
+      ...camp,
+      leads: camp.leads.map(lead => (
+        unread.some(item => item.id === lead.id)
+          ? { ...lead, isRead: true }
+          : lead
+      )),
+    })));
+
     try {
       await Promise.all(unread.map(lead => apiService.put(`/leads/${lead.id}`, { is_read: true })));
-      setCampaigns(prev => prev.map(camp => ({
-        ...camp,
-        leads: camp.leads.map(lead => (
-          unread.some(item => item.id === lead.id)
-            ? { ...lead, isRead: true }
-            : lead
-        )),
-      })));
     } catch (error) {
       console.error('Failed to mark leads as read:', error);
     }
@@ -704,12 +726,31 @@ export default function SellerDashboardScreen({ navigation }) {
           uploadedUrls.push(img.serverUrl || img.uri);
           continue;
         }
-        const formData = new FormData();
         const fileName = img.meta?.fileName || `campaign_${Date.now()}.jpg`;
         const mimeType = img.meta?.mimeType || 'image/jpeg';
-        formData.append('file', { uri: img.uri, name: fileName, type: mimeType });
-        const uploadRes = await apiService.post('/upload/image', formData);
-        uploadedUrls.push(uploadRes.url);
+        
+        try {
+          const uploadUrl = `${API_CONFIG.BASE_URL}/upload/image`;
+          const headers = await apiService.getHeaders();
+          
+          const uploadRes = await FileSystem.uploadAsync(uploadUrl, img.uri, {
+            fieldName: 'file',
+            httpMethod: 'POST',
+            uploadType: 1, // FileSystemUploadType.MULTIPART
+            mimeType: mimeType,
+            headers: headers,
+          });
+
+          if (uploadRes.status >= 200 && uploadRes.status < 300) {
+            const data = JSON.parse(uploadRes.body);
+            uploadedUrls.push(data.url);
+          } else {
+            throw new Error(`Upload failed with status ${uploadRes.status}: ${uploadRes.body}`);
+          }
+        } catch (e) {
+          console.error("FileSystem.uploadAsync error:", e);
+          throw new Error("Failed to upload image. Please try again.");
+        }
       }
 
       const payload = {
@@ -824,6 +865,12 @@ export default function SellerDashboardScreen({ navigation }) {
       <View style={[styles.header, { backgroundColor: 'transparent', borderBottomWidth: 0 }]}>
         <Text style={[styles.logoText, { color: '#2563EB' }]}>Reachlo</Text>
         <View style={styles.headerRight}>
+          <Pressable 
+            style={[styles.bellContainer, { marginRight: 8 }]}
+            onPress={() => navigation.navigate('SellerMessages')}
+          >
+            <Ionicons name="chatbubbles-outline" size={24} color="#1E293B" />
+          </Pressable>
           <Pressable 
             style={styles.bellContainer}
             onPress={() => setNotificationsModalVisible(true)}
@@ -2001,7 +2048,7 @@ export default function SellerDashboardScreen({ navigation }) {
                       lead={{ ...lead, campaignTitle: lead.campaignTitle || selectedCampaignForLeads?.title }}
                       onDismiss={dismissLeadNotification}
                       onCall={() => callLead(lead)}
-                      onWhatsApp={() => whatsAppLead({ ...lead, campaignTitle: lead.campaignTitle || selectedCampaignForLeads?.title })}
+                      onWhatsApp={() => chatLead({ ...lead, campaignTitle: lead.campaignTitle || selectedCampaignForLeads?.title })}
                       onView={() => viewLeadDetails({ ...lead, campaignTitle: lead.campaignTitle || selectedCampaignForLeads?.title })}
                     />
                   ))
@@ -2056,13 +2103,13 @@ export default function SellerDashboardScreen({ navigation }) {
                   </Text>
                 </View>
               ) : (
-                allNewLeads.map((lead) => (
+                allNewLeads.map((lead, index) => (
                   <LeadNotificationCard
-                    key={lead.id}
+                    key={`new-lead-${lead.id}-${index}`}
                     lead={lead}
                     onDismiss={dismissLeadNotification}
                     onCall={() => callLead(lead)}
-                    onWhatsApp={() => whatsAppLead(lead)}
+                    onWhatsApp={() => chatLead(lead)}
                     onView={() => viewLeadDetails(lead)}
                   />
                 ))
