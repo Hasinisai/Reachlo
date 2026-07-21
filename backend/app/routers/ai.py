@@ -373,6 +373,9 @@ def generate_ai_campaign(
         cta_value=draft_cta_value,
         target_audience=campaign_content.get("target_audience"),
         target_cities=request.target_cities,
+        location_address=request.location_address,
+        latitude=request.latitude,
+        longitude=request.longitude,
         image_url=image_url,
         # Store the Ideogram prompt so regeneration also uses it
         image_prompt=ideogram_prompt,

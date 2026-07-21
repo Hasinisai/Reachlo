@@ -269,3 +269,17 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
     user.password_hash = get_password_hash(payload.new_password)
     db.commit()
     return {"message": "Password reset successfully."}
+
+
+from app.schemas import PushTokenUpdate
+
+@router.post("/push-token", status_code=200)
+def update_push_token(
+    payload: PushTokenUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update the authenticated user's Expo push token."""
+    current_user.expo_push_token = payload.expo_push_token
+    db.commit()
+    return {"message": "Push token updated."}
