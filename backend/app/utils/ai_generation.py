@@ -406,10 +406,10 @@ def _call_gemini(
         raise ValueError("GEMINI_API_KEY is not configured")
 
     models_to_try = [
-        "gemini-2.5-flash",
-        "gemini-2.0-flash",
-        "gemini-2.5-flash-lite",
-        "gemini-flash-latest"
+        "gemini-2.5-pro",         # Pro tier — highest quality for campaign generation
+        "gemini-2.5-flash",       # Fast + capable, great for all prompts
+        "gemini-2.0-flash",       # Reliable fallback
+        "gemini-flash-latest",    # Latest stable alias
     ]
 
     contents = [{"role": "user", "parts": [{"text": prompt}]}]
@@ -1187,8 +1187,29 @@ def compose_campaign_ad_thumbnail(
     """
     Convert the generated visual into a finished ad thumbnail.
 
-    Flux is unreliable at spelling. Keep Flux responsible for the hero visual
-    and use Pillow for real ad text, badges, contrast, and layout.
+    Design philosophy (modern Instagram/Meta ad style):
+    - Full-bleed hero image behind everything
+    - Cinematic gradient from transparent → near-black over the bottom 55%
+    - Text drawn DIRECTLY on the gradient zone (white on dark) — clean, modern
+    - No white boxes or dated overlays — just premium typography on depth
+    - Bottom zone layout: hook headline → support line → badge + CTA row
+    - Top-left: frosted glass pill with brand name & category
+    - Accent colour stripe above text zone for visual pop
+
+    Layout at 1200×900 (4:3):
+      ┌─────────────────────────────────────────┐
+      │ [Brand Pill]                     ACTIVE │  y=0..90
+      │                                         │
+      │         HERO IMAGE (full bleed)         │
+      │                                         │
+      ├─────────────────────────────────────────┤  y≈450 gradient starts
+      │ ═══ accent stripe                       │  y=490
+      │                                         │
+      │  HOOK HEADLINE                          │  y=520..630
+      │  Support line tagline                   │  y=640
+      │                                         │
+      │  [BADGE PILL]          [CTA BUTTON →]   │  y=780
+      └─────────────────────────────────────────┘  y=900
     """
     if Image is None:
         raise RuntimeError("Pillow is required for ad thumbnail composition. Install backend requirements.")
@@ -1196,6 +1217,7 @@ def compose_campaign_ad_thumbnail(
     os.makedirs(save_dir, exist_ok=True)
     output_path = os.path.join(save_dir, f"{uuid.uuid4().hex}.png")
 
+    # ── 1. Load + crop base image to 1200×900 ──────────────────────────────
     base = Image.open(base_image_path).convert("RGB")
     src_ratio = base.width / base.height
     target_ratio = IMAGE_WIDTH / IMAGE_HEIGHT
@@ -1207,80 +1229,185 @@ def compose_campaign_ad_thumbnail(
         new_h = int(new_w / src_ratio)
     base = base.resize((new_w, new_h), Image.LANCZOS)
     left = (new_w - IMAGE_WIDTH) // 2
-    top = (new_h - IMAGE_HEIGHT) // 2
+    top  = (new_h - IMAGE_HEIGHT) // 2
     canvas = base.crop((left, top, left + IMAGE_WIDTH, top + IMAGE_HEIGHT)).convert("RGBA")
 
+    # Mild sharpening for crispness
+    canvas = canvas.filter(ImageFilter.UnsharpMask(radius=1.0, percent=110, threshold=3))
+
+    # ── 2. Derive colour palette ────────────────────────────────────────────
     primary, accent, dark = _accent_palette(category, (ad_creative_design or {}).get("color_accent"))
-    overlay = Image.new("RGBA", (IMAGE_WIDTH, IMAGE_HEIGHT), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(overlay)
 
-    for y in range(IMAGE_HEIGHT):
-        if y < 470:
+    # ── 3. Cinematic gradient overlay — transparent top → dark bottom ───────
+    gradient = Image.new("RGBA", (IMAGE_WIDTH, IMAGE_HEIGHT), (0, 0, 0, 0))
+    grad_draw = ImageDraw.Draw(gradient)
+    GRAD_START_Y = 410      # gradient begins here (transparent)
+    GRAD_OPAQUE_Y = 680     # fully opaque by this point
+    for gy in range(IMAGE_HEIGHT):
+        if gy < GRAD_START_Y:
             continue
-        alpha = int(min(218, ((y - 470) / (IMAGE_HEIGHT - 470)) * 218))
-        draw.line([(0, y), (IMAGE_WIDTH, y)], fill=(dark[0], dark[1], dark[2], alpha))
+        t = min(1.0, (gy - GRAD_START_Y) / (GRAD_OPAQUE_Y - GRAD_START_Y))
+        # Ease-in-out for a smooth, cinematic look
+        t = t * t * (3 - 2 * t)
+        alpha = int(t * 230)
+        grad_draw.line([(0, gy), (IMAGE_WIDTH, gy)], fill=(dark[0], dark[1], dark[2], alpha))
 
-    draw.polygon([(0, 0), (610, 0), (520, 128), (0, 128)], fill=(primary[0], primary[1], primary[2], 226))
-    draw.polygon([(820, 0), (IMAGE_WIDTH, 0), (IMAGE_WIDTH, 620), (1030, 560)], fill=(accent[0], accent[1], accent[2], 92))
-    draw.polygon([(880, 0), (IMAGE_WIDTH, 0), (IMAGE_WIDTH, 410), (990, 355)], fill=(primary[0], primary[1], primary[2], 112))
+    canvas = Image.alpha_composite(canvas, gradient)
 
-    canvas = Image.alpha_composite(canvas, overlay)
-    canvas = canvas.filter(ImageFilter.UnsharpMask(radius=1.2, percent=115, threshold=3))
+    # ── 4. Accent stripe — thin coloured bar above the text zone ───────────
+    stripe_layer = Image.new("RGBA", (IMAGE_WIDTH, IMAGE_HEIGHT), (0, 0, 0, 0))
+    stripe_draw = ImageDraw.Draw(stripe_layer)
+    STRIPE_Y = 500
+    stripe_draw.rectangle([(0, STRIPE_Y), (IMAGE_WIDTH, STRIPE_Y + 5)],
+                           fill=(accent[0], accent[1], accent[2], 220))
+    # Slightly wider highlight on the left 280px for visual weight
+    stripe_draw.rectangle([(0, STRIPE_Y), (280, STRIPE_Y + 5)],
+                           fill=(255, 255, 255, 200))
+    canvas = Image.alpha_composite(canvas, stripe_layer)
+
+    # ── 5. Load fonts ───────────────────────────────────────────────────────
+    font_brand    = _load_font(28, bold=True)
+    font_cat      = _load_font(20, bold=False)
+    font_hook     = _load_font(72, bold=True)
+    font_hook_sm  = _load_font(58, bold=True)   # fallback for longer hooks
+    font_support  = _load_font(32, bold=False)
+    font_badge    = _load_font(28, bold=True)
+    font_cta      = _load_font(27, bold=True)
+
     draw = ImageDraw.Draw(canvas)
 
-    font_brand = _load_font(34, bold=True)
-    font_small = _load_font(25, bold=True)
-    font_title = _load_font(62, bold=True)
-    font_support = _load_font(31, bold=True)
-    font_badge = _load_font(30, bold=True)
-    font_cta = _load_font(26, bold=True)
-
-    brand = (business_name or "REACHLO").strip()[:28]
-    cat = (category or target_audience or "Campaign").strip()[:32]
-    draw.text((46, 30), brand, font=font_brand, fill=(255, 255, 255, 255))
-    draw.text((48, 78), cat.upper(), font=font_small, fill=(235, 244, 255, 235))
-
-    panel_x, panel_y, panel_w, panel_h = 54, 584, 710, 214
-    shadow = Image.new("RGBA", (IMAGE_WIDTH, IMAGE_HEIGHT), (0, 0, 0, 0))
-    shadow_draw = ImageDraw.Draw(shadow)
-    shadow_draw.rounded_rectangle((panel_x + 8, panel_y + 10, panel_x + panel_w + 8, panel_y + panel_h + 10), radius=28, fill=(0, 0, 0, 88))
-    shadow = shadow.filter(ImageFilter.GaussianBlur(10))
-    canvas = Image.alpha_composite(canvas, shadow)
-    draw = ImageDraw.Draw(canvas)
-    draw.rounded_rectangle((panel_x, panel_y, panel_x + panel_w, panel_y + panel_h), radius=28, fill=(255, 255, 255, 236))
-
+    # ── 6. Gather text content ──────────────────────────────────────────────
     fallback_copy = _fallback_poster_copy(category, campaign_title)
-    poster_copy = poster_copy or {}
-    hook = _clean_poster_copy_value(poster_copy.get("hook"), fallback_copy["hook"], 34)
-    support_line = _clean_poster_copy_value(poster_copy.get("support_line"), fallback_copy["support_line"], 48)
-    badge = _clean_poster_copy_value(poster_copy.get("badge"), fallback_copy["badge"], 24)
+    poster_copy   = poster_copy or {}
+    hook         = _clean_poster_copy_value(poster_copy.get("hook"),         fallback_copy["hook"],         32)
+    support_line = _clean_poster_copy_value(poster_copy.get("support_line"), fallback_copy["support_line"], 52)
+    badge        = _clean_poster_copy_value(poster_copy.get("badge"),        fallback_copy["badge"],         22)
+    cta_label    = "ENROLL NOW" if "education" in (category or "").lower() else "BOOK NOW"
 
-    title_lines = _wrap_text(draw, hook, font_title, panel_w - 58, max_lines=2)
-    y = panel_y + 32
-    for line in title_lines:
-        draw.text((panel_x + 30, y), line, font=font_title, fill=(15, 23, 42, 255))
-        y += 68
+    # ── 7. Top-left brand pill (frosted glass style) ─────────────────────
+    brand = (business_name or "REACHLO").strip()[:26]
+    cat   = (category or target_audience or "Campaign").strip()[:30]
 
-    support_y = min(y + 2, panel_y + panel_h - 80)
-    draw.text((panel_x + 32, support_y), support_line, font=font_support, fill=(71, 85, 105, 255))
+    brand_w, brand_h = _text_size(draw, brand, font_brand)
+    pill_padding = 18
+    pill_w = brand_w + pill_padding * 2
+    pill_h = 68
 
+    pill_layer = Image.new("RGBA", (IMAGE_WIDTH, IMAGE_HEIGHT), (0, 0, 0, 0))
+    pill_draw  = ImageDraw.Draw(pill_layer)
+    # Dark semi-transparent pill
+    pill_draw.rounded_rectangle(
+        (36, 22, 36 + pill_w, 22 + pill_h),
+        radius=16,
+        fill=(dark[0], dark[1], dark[2], 190)
+    )
+    canvas = Image.alpha_composite(canvas, pill_layer)
+    draw   = ImageDraw.Draw(canvas)
+
+    # Accent left border on pill
+    draw.rounded_rectangle(
+        (36, 22, 42, 22 + pill_h),
+        radius=4,
+        fill=(accent[0], accent[1], accent[2], 255)
+    )
+    draw.text((36 + pill_padding + 4, 26),      brand,          font=font_brand, fill=(255, 255, 255, 255))
+    draw.text((36 + pill_padding + 4, 26 + 34), cat.upper(),    font=font_cat,   fill=(accent[0], accent[1], accent[2], 230))
+
+    # ── 8. Hook headline — white text with drop-shadow on gradient ─────────
+    HOOK_LEFT   = 48
+    HOOK_TOP    = 520
+    HOOK_MAX_W  = IMAGE_WIDTH - HOOK_LEFT - 60   # leave right margin
+
+    # Pick font size: try large, fall back to smaller if text is long
+    hook_words = hook.split()
+    hook_lines = _wrap_text(draw, hook, font_hook, HOOK_MAX_W, max_lines=2)
+    if len(" ".join(hook_lines)) < len(hook):   # text got cut — use smaller font
+        hook_lines = _wrap_text(draw, hook, font_hook_sm, HOOK_MAX_W, max_lines=2)
+        chosen_hook_font = font_hook_sm
+        line_h = 66
+    else:
+        chosen_hook_font = font_hook
+        line_h = 80
+
+    # Draw soft drop-shadow first, then white text
+    shadow_offset = 3
+    cur_y = HOOK_TOP
+    for line in hook_lines:
+        draw.text((HOOK_LEFT + shadow_offset, cur_y + shadow_offset), line,
+                  font=chosen_hook_font, fill=(0, 0, 0, 120))
+        draw.text((HOOK_LEFT, cur_y), line,
+                  font=chosen_hook_font, fill=(255, 255, 255, 255))
+        cur_y += line_h
+
+    # ── 9. Support tagline — slightly muted white ──────────────────────────
+    SUPPORT_TOP = cur_y + 10
+    # Clamp support line to fit above the bottom action row (y=760)
+    if SUPPORT_TOP > 720:
+        SUPPORT_TOP = 720
+    support_lines = _wrap_text(draw, support_line, font_support, HOOK_MAX_W, max_lines=2)
+    sup_y = SUPPORT_TOP
+    for sline in support_lines:
+        draw.text((HOOK_LEFT + 2, sup_y + 2), sline,   # shadow
+                  font=font_support, fill=(0, 0, 0, 90))
+        draw.text((HOOK_LEFT, sup_y), sline,
+                  font=font_support, fill=(220, 230, 255, 210))
+        sup_y += 40
+
+    # ── 10. Bottom action row: [BADGE PILL] ··················· [CTA BUTTON] ─
+    ACTION_Y    = 822   # bottom of row
+    ACTION_H    = 54    # pill/button height
+
+    # Badge pill (left)
     badge_w, _ = _text_size(draw, badge, font_badge)
-    badge_x, badge_y = panel_x + 30, panel_y + panel_h - 58
-    draw.rounded_rectangle((badge_x, badge_y, badge_x + badge_w + 46, badge_y + 46), radius=23, fill=(accent[0], accent[1], accent[2], 255))
-    draw.text((badge_x + 23, badge_y + 7), badge, font=font_badge, fill=(dark[0], dark[1], dark[2], 255))
+    BADGE_X     = HOOK_LEFT
+    BADGE_Y     = ACTION_Y
 
-    cta = "ENROLL NOW" if "education" in (category or "").lower() else "BOOK NOW"
-    cta_w, _ = _text_size(draw, cta, font_cta)
-    draw.rounded_rectangle((895, 735, 1128, 798), radius=31, fill=(primary[0], primary[1], primary[2], 245))
-    draw.text((895 + (233 - cta_w) // 2, 753), cta, font=font_cta, fill=(255, 255, 255, 255))
+    badge_layer = Image.new("RGBA", (IMAGE_WIDTH, IMAGE_HEIGHT), (0, 0, 0, 0))
+    badge_draw  = ImageDraw.Draw(badge_layer)
+    badge_draw.rounded_rectangle(
+        (BADGE_X, BADGE_Y, BADGE_X + badge_w + 44, BADGE_Y + ACTION_H),
+        radius=27,
+        fill=(accent[0], accent[1], accent[2], 255)
+    )
+    canvas = Image.alpha_composite(canvas, badge_layer)
+    draw   = ImageDraw.Draw(canvas)
 
-    for i, color in enumerate((accent, primary, (255, 255, 255))):
-        x = 1010 + i * 38
-        draw.ellipse((x, 646, x + 18, 664), fill=(*color, 230))
+    # Badge text: dark colour on accent background for maximum contrast
+    badge_text_color = (dark[0], dark[1], dark[2], 255)
+    draw.text(
+        (BADGE_X + 22, BADGE_Y + (ACTION_H - 28) // 2),
+        badge,
+        font=font_badge,
+        fill=badge_text_color
+    )
+
+    # CTA button (right side, aligned to right margin)
+    CTA_RIGHT   = IMAGE_WIDTH - 48
+    cta_w, _   = _text_size(draw, cta_label, font_cta)
+    CTA_BTN_W  = cta_w + 52
+    CTA_X      = CTA_RIGHT - CTA_BTN_W
+    CTA_Y      = ACTION_Y
+
+    cta_layer = Image.new("RGBA", (IMAGE_WIDTH, IMAGE_HEIGHT), (0, 0, 0, 0))
+    cta_draw  = ImageDraw.Draw(cta_layer)
+    cta_draw.rounded_rectangle(
+        (CTA_X, CTA_Y, CTA_X + CTA_BTN_W, CTA_Y + ACTION_H),
+        radius=27,
+        fill=(primary[0], primary[1], primary[2], 245)
+    )
+    canvas = Image.alpha_composite(canvas, cta_layer)
+    draw   = ImageDraw.Draw(canvas)
+    draw.text(
+        (CTA_X + (CTA_BTN_W - cta_w) // 2, CTA_Y + (ACTION_H - 27) // 2),
+        cta_label,
+        font=font_cta,
+        fill=(255, 255, 255, 255)
+    )
 
     canvas.convert("RGB").save(output_path, "PNG", optimize=True)
     print(f"[INFO] Composed ad thumbnail saved: {output_path}")
     return output_path
+
 
 
 # ---------------------------------------------------------------------------
@@ -1372,9 +1499,81 @@ def build_ideogram_prompt(
     return full
 
 
-# ---------------------------------------------------------------------------
-# Image generation — Ideogram v2
-# ---------------------------------------------------------------------------
+def generate_image_with_gemini(
+    prompt: str,
+    save_dir: str = "uploads/ai-thumbnails",
+) -> str | None:
+    """
+    Generate an ad image using Gemini's native image generation models.
+
+    With a Pro API key, models like gemini-2.5-flash-image and gemini-3.1-flash-image
+    can output images directly via the generateContent API.
+    Returns the local file path on success, or None if generation fails (caller should fall back).
+
+    Why this is better than Pollinations/Ideogram for ad creatives:
+      - Understands our detailed prompt with brand context, gradients, and composition
+      - Much higher photorealism and commercial style awareness
+      - No external API tokens needed (uses same Gemini key)
+      - Consistent quality tied to our carefully crafted prompts
+    """
+    api_key = settings.GEMINI_API_KEY
+    if not api_key:
+        return None
+
+    # Image-capable Gemini models (priority order)
+    image_models = [
+        "gemini-2.5-flash-image",
+        "gemini-3.1-flash-image",
+        "gemini-3.1-flash-image-preview",
+        "gemini-3-pro-image",
+    ]
+
+    os.makedirs(save_dir, exist_ok=True)
+    filename = f"{uuid.uuid4().hex}.png"
+    filepath = os.path.join(save_dir, filename)
+
+    payload = {
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "responseModalities": ["IMAGE", "TEXT"],
+            "temperature": 0.8,
+        },
+    }
+
+    for model in image_models:
+        url = (
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{model}:generateContent?key={api_key}"
+        )
+        try:
+            response = requests.post(url, json=payload, timeout=180)
+            if response.status_code != 200:
+                print(f"[WARN] Gemini image model {model} returned {response.status_code}. Trying next...")
+                continue
+
+            data = response.json()
+            candidates = data.get("candidates", [])
+            if not candidates:
+                continue
+
+            parts = candidates[0].get("content", {}).get("parts", [])
+            for part in parts:
+                inline = part.get("inlineData", {})
+                if inline.get("mimeType", "").startswith("image/"):
+                    import base64
+                    img_bytes = base64.b64decode(inline["data"])
+                    with open(filepath, "wb") as f:
+                        f.write(img_bytes)
+                    print(f"[INFO] Gemini image saved via {model}: {filepath} ({len(img_bytes) // 1024} KB)")
+                    return filepath
+
+        except Exception as e:
+            print(f"[WARN] Gemini image model {model} failed: {e}")
+            continue
+
+    print("[WARN] All Gemini image models failed — will fall back to Ideogram/Pollinations.")
+    return None
+
 
 def generate_campaign_image(
     full_prompt: str,
@@ -1382,22 +1581,23 @@ def generate_campaign_image(
     save_dir: str = "uploads/ai-thumbnails",
 ) -> str:
     """
-    Generate a premium advertising-quality 4:3 image using Ideogram v2 API.
+    Generate a premium advertising-quality 4:3 image.
 
-    Why Ideogram v2 over Pollinations/Flux:
-      - Native understanding of commercial ad compositions and photography styles
-      - Accurate gradient backgrounds with precise color control
-      - Photorealistic product/still-life shots with professional lighting
-      - Clean text-safe zone generation (critical for our Pillow overlay)
-      - Supports separate negative prompt for precise exclusion control
-      - Significantly more consistent quality across retries
-
-    Model: V_2 (Ideogram v2) — highest quality commercial image model
-    Resolution: 1344x1008 (closest to our 4:3 1200x900 target, then Pillow-resized)
-    Style: REALISTIC — best for product photography and commercial ad creatives
+    Generation priority (highest quality first):
+      1. Gemini native image generation (gemini-2.5-flash-image / gemini-3.1-flash-image)
+         — Best quality, uses same Pro API key, understands our full prompt context.
+      2. Ideogram v2 API — photorealistic ad-style images with accurate gradients.
+      3. Pollinations AI (Flux) — free fallback, lower quality but always available.
 
     Returns the local file path to the saved generated image.
     """
+    # ── Attempt 1: Gemini native image generation ─────────────────────────────
+    print("[INFO] Attempting Gemini native image generation...")
+    gemini_path = generate_image_with_gemini(full_prompt, save_dir=save_dir)
+    if gemini_path:
+        return gemini_path
+
+    # ── Attempt 2: Ideogram v2 ────────────────────────────────────────────────
     api_key = settings.IDEOGRAM_API_KEY
     if not api_key:
         raise ValueError("IDEOGRAM_API_KEY is not configured in .env")
@@ -1408,19 +1608,12 @@ def generate_campaign_image(
 
     neg = negative_prompt or FLUX_NEGATIVE_PROMPT
 
-    # Ideogram v2 API endpoint — POST JSON body
     url = "https://api.ideogram.ai/generate"
     headers = {
         "Api-Key": api_key,
         "Content-Type": "application/json",
     }
 
-    # Ideogram v2 generation payload
-    # - model: V_2 is the latest Ideogram model with best photorealism
-    # - resolution: RESOLUTION_1344_1008 gives a 4:3 native canvas (1.33:1 ratio)
-    #   Pillow crops/resizes to our exact 1200x900 target
-    # - style_type: REALISTIC — best for product photography & commercial ads
-    # - color_palette: omitted — let Ideogram derive from the gradient in the prompt
     payload = {
         "image_request": {
             "prompt": full_prompt,
@@ -1428,12 +1621,12 @@ def generate_campaign_image(
             "model": "V_2",
             "aspect_ratio": "ASPECT_4_3",
             "style_type": "REALISTIC",
-            "magic_prompt_option": "ON",   # Ideogram's built-in prompt enhancer
+            "magic_prompt_option": "ON",
             "num_images": 1,
         }
     }
 
-    print(f"[INFO] Calling Ideogram v2 | prompt_len={len(full_prompt)} chars")
+    print(f"[INFO] Calling Ideogram v2 | prompt_len={len(full_prompt)} chars  ")
     print(f"[INFO] Ideogram prompt preview: {full_prompt[:200]}...")
 
     response = requests.post(url, json=payload, headers=headers, timeout=180)
@@ -1442,7 +1635,6 @@ def generate_campaign_image(
         error_text = response.text[:400]
         if response.status_code in (401, 402):
             print(f"[WARN] Ideogram API error {response.status_code}: {error_text}. Falling back to free Pollinations AI (Flux).")
-            # Fallback to Pollinations AI
             import urllib.parse
             encoded_prompt = urllib.parse.quote(full_prompt)
             fallback_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1344&height=1008&nologo=true"
@@ -1455,8 +1647,6 @@ def generate_campaign_image(
             raise ValueError(f"Ideogram API error {response.status_code}: {error_text}")
 
     resp_data = response.json()
-
-    # Ideogram returns: {"data": [{"url": "https://...", "prompt": "...", ...}]}
     images = resp_data.get("data", [])
     if not images:
         raise ValueError(f"Ideogram returned no images. Response: {resp_data}")
@@ -1465,7 +1655,6 @@ def generate_campaign_image(
     if not image_url:
         raise ValueError(f"Ideogram image URL missing in response: {images[0]}")
 
-    # Download the generated image
     img_response = requests.get(image_url, timeout=120)
     img_response.raise_for_status()
 
@@ -1480,6 +1669,7 @@ def generate_campaign_image(
 
     print(f"[INFO] Ideogram image saved: {filepath} ({len(img_response.content) // 1024} KB)")
     return filepath
+
 
 
 # ---------------------------------------------------------------------------

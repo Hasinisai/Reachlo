@@ -246,11 +246,11 @@ export default function SplashScreen({ navigation }) {
                 pressed && styles.buttonPressed,
               ]}
               accessibilityRole="button"
-              accessibilityLabel="Connect with Ready Buyers — for businesses"
+              accessibilityLabel="Grow Your Business — for businesses"
             >
               
               <View style={styles.buttonTextContainer}>
-                <Text style={styles.sellerButtonTitle}>Connect with Ready Buyers</Text>
+                <Text style={styles.sellerButtonTitle}>Grow Your Business</Text>
                 <Text style={styles.buttonSubtext}>For businesses & sellers</Text>
               </View>
               <Text style={styles.buttonArrow}>→</Text>
@@ -264,11 +264,11 @@ export default function SplashScreen({ navigation }) {
                 pressed && styles.buttonPressed,
               ]}
               accessibilityRole="button"
-              accessibilityLabel="Unlock Special Offers — for buyers"
+              accessibilityLabel="Explore Amazing Offers — for buyers"
             >
                
               <View style={styles.buttonTextContainer}>
-                <Text style={styles.buyerButtonTitle}>Unlock Special Offers</Text>
+                <Text style={styles.buyerButtonTitle}>Explore Amazing Offers</Text>
                 <Text style={styles.buyerButtonSubtext}>For shoppers & buyers</Text>
               </View>
               <Text style={styles.buyerButtonArrow}>→</Text>
