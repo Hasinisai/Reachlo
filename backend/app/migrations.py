@@ -18,8 +18,12 @@ def run_migrations() -> None:
             alterations.append("ALTER TABLE users DROP COLUMN area")
         if "fcm_token" in columns:
             alterations.append("ALTER TABLE users DROP COLUMN fcm_token")
-        if "city" in columns:
-            alterations.append("ALTER TABLE users DROP COLUMN city")
+        if "city" not in columns:
+            alterations.append("ALTER TABLE users ADD COLUMN city VARCHAR(100) NULL")
+        if "profile_picture" not in columns:
+            alterations.append("ALTER TABLE users ADD COLUMN profile_picture VARCHAR(255) NULL")
+        if "preferences" not in columns:
+            alterations.append("ALTER TABLE users ADD COLUMN preferences TEXT NULL")
 
     # -------------------------------------------------------------- businesses
     if "businesses" in table_names:
@@ -169,6 +173,13 @@ def run_migrations() -> None:
         # ai_pipeline_stages: full JSON of all reasoning stages (marketing_strategy, buyer_psychology, creative_brief)
         if "ai_pipeline_stages" not in draft_cols:
             alterations.append("ALTER TABLE ai_campaign_drafts ADD COLUMN ai_pipeline_stages TEXT NULL")
+        # Location fields — added to model after initial table creation
+        if "location_address" not in draft_cols:
+            alterations.append("ALTER TABLE ai_campaign_drafts ADD COLUMN location_address TEXT NULL")
+        if "latitude" not in draft_cols:
+            alterations.append("ALTER TABLE ai_campaign_drafts ADD COLUMN latitude DECIMAL(10,8) NULL")
+        if "longitude" not in draft_cols:
+            alterations.append("ALTER TABLE ai_campaign_drafts ADD COLUMN longitude DECIMAL(11,8) NULL")
 
     # ------------------------------------------------------ market_signals (new table)
     if "market_signals" not in table_names:

@@ -35,6 +35,9 @@ class UserResponse(BaseModel):
     phone: str
     role: str
     is_active: bool
+    city: Optional[str] = None
+    profile_picture: Optional[str] = None
+    preferences: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -44,6 +47,9 @@ class UserUpdate(BaseModel):
     """For updating personal details from the profile edit page."""
     name: Optional[str] = None
     phone: Optional[str] = None
+    city: Optional[str] = None
+    profile_picture: Optional[str] = None
+    preferences: Optional[str] = None
 
 # --- BUSINESS SCHEMAS ---
 class BusinessResponse(BaseModel):

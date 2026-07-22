@@ -20,6 +20,9 @@ class User(Base):
     role = Column(String(20), nullable=False, default="BUYER") # BUYER, SELLER, ADMIN
     is_active = Column(Boolean, default=True)
     expo_push_token = Column(String(255), nullable=True)  # Expo push token for device notifications
+    city = Column(String(100), nullable=True)
+    profile_picture = Column(String(255), nullable=True)
+    preferences = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

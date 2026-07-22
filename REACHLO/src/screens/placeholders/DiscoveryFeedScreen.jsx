@@ -11,6 +11,7 @@ import {
   Modal,
   Image,
   FlatList,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -23,12 +24,15 @@ import apiService from '../../services/apiService';
 import { resolveMediaUrl } from '../../config/apiConfig';
 import CampaignFeedCard, { formatCampaignEndDate, formatPrice } from '../../components/CampaignFeedCard';
 import * as Location from 'expo-location';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+import API_CONFIG from '../../config/apiConfig';
 import BusinessVerifiedBadge from '../../components/BusinessVerifiedBadge';
 import { truncateChipLabel } from '../../constants/campaignCardConstants';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import chatService from '../../services/chatService';
 import CampaignDetailScreen from './CampaignDetailScreen';
 // Service Data with Emoji icons and offer counts as specified
@@ -328,6 +332,19 @@ const CategoryItem = ({ service, isSelected, onPress }) => {
 export default function DiscoveryFeedScreen() {
   const { user, logout, updateUserProfile } = useAuth();
   const navigation = useNavigation();
+  const route = useRoute();
+
+  useEffect(() => {
+    if (route.params?.selectedCategoryId) {
+      const categoryId = route.params.selectedCategoryId;
+      const found = SERVICES_DATA.find((s) => s.id === categoryId);
+      if (found) {
+        setSelectedService(found);
+        setSelectedSubService(found.subServices[0]);
+        setActiveTab('Home');
+      }
+    }
+  }, [route.params?.selectedCategoryId]);
 
   // Tabs: 'Home' | 'Saved' | 'Profile'
   const [activeTab, setActiveTab] = useState('Home');
@@ -553,6 +570,10 @@ export default function DiscoveryFeedScreen() {
   const [profName, setProfName] = useState(user?.name || '');
   const [profCity, setProfCity] = useState(user?.city || '');
   const [profPhone, setProfPhone] = useState(user?.phone || '');
+  const [profileImage, setProfileImage] = useState(user?.profile_picture || null);
+  const [profPreferences, setProfPreferences] = useState(user?.preferences || '');
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
 
   // Animation values
   const contentFadeAnim = useRef(new Animated.Value(0)).current;
@@ -574,19 +595,94 @@ export default function DiscoveryFeedScreen() {
     setActiveTab(tab);
   };
 
-  const handleSaveProfile = () => {
+  const handlePickProfileImage = async () => {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (permission.status !== 'granted') {
+        Alert.alert('Permission Required', 'Please allow access to your photo library to change your profile picture.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets?.length > 0) {
+        const localUri = result.assets[0].uri;
+        setSavingProfile(true);
+
+        const uploadUrl = `${API_CONFIG.BASE_URL}/upload/image`;
+        const headers = await apiService.getHeaders();
+        const uploadRes = await FileSystem.uploadAsync(uploadUrl, localUri, {
+          fieldName: 'file',
+          httpMethod: 'POST',
+          uploadType: 1, // FileSystemUploadType.MULTIPART
+          mimeType: 'image/jpeg',
+          headers: headers,
+        });
+
+        if (uploadRes.status >= 200 && uploadRes.status < 300) {
+          const data = JSON.parse(uploadRes.body);
+          setProfileImage(data.url);
+          // Auto-save the new picture
+          await apiService.request('/auth/me', {
+            method: 'PATCH',
+            body: { profile_picture: data.url },
+          });
+          if (updateUserProfile) {
+            updateUserProfile({ profile_picture: data.url });
+          }
+          Alert.alert('Success', 'Profile picture updated successfully!');
+        } else {
+          throw new Error('Upload failed');
+        }
+      }
+    } catch (e) {
+      console.warn('Image upload error:', e);
+      Alert.alert('Error', 'Failed to update profile picture. Please try again.');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const handleSaveProfile = async () => {
     if (!profName.trim() || !profCity.trim() || !profPhone.trim()) {
-      Alert.alert('Error', 'Please fill in all profile fields');
+      Alert.alert('Error', 'Please fill in all required profile fields (Name, City, Phone)');
       return;
     }
-    if (updateUserProfile) {
-      updateUserProfile({
+    setSavingProfile(true);
+    try {
+      const body = {
         name: profName.trim(),
+        phone: profPhone.replace(/[^0-9]/g, ''),
         city: profCity.trim(),
-        phone: profPhone.trim(),
+        preferences: profPreferences.trim(),
+      };
+      
+      const response = await apiService.request('/auth/me', {
+        method: 'PATCH',
+        body: body,
       });
+
+      if (updateUserProfile) {
+        updateUserProfile({
+          name: response.name,
+          phone: response.phone,
+          city: response.city,
+          preferences: response.preferences,
+        });
+      }
+      setIsEditingProfile(false);
+      Alert.alert('Success', 'Profile updated successfully!');
+    } catch (e) {
+      console.warn('Profile save error:', e);
+      Alert.alert('Error', e.message || 'Failed to update profile details.');
+    } finally {
+      setSavingProfile(false);
     }
-    Alert.alert('Success', 'Profile updated successfully!');
   };
 
   const toggleSaveCampaign = async (id) => {
@@ -941,7 +1037,10 @@ export default function DiscoveryFeedScreen() {
                           <Text style={styles.categoriesTitle}>Categories</Text>
                           <Text style={styles.categoriesSubtitle}>Explore businesses and offers near you</Text>
                         </View>
-                        <Pressable onPress={() => {}}>
+                        <Pressable 
+                          onPress={() => navigation.navigate('AllCategories')}
+                          style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+                        >
                           <Text style={styles.seeAllText}>See All</Text>
                         </Pressable>
                       </View>
@@ -1121,43 +1220,174 @@ export default function DiscoveryFeedScreen() {
         )}
 
         {activeTab === 'Profile' && (
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-            <Text style={styles.tabSectionTitle}>My Profile</Text>
-            <Text style={styles.tabSectionSubtitle}>Manage your profile details and preferences.</Text>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.buyerProfileScrollContent}>
+            {isEditingProfile ? (
+              /* EDIT PROFILE MODE */
+              <View style={styles.editProfileContainer}>
+                <Text style={styles.tabSectionTitle}>Edit Profile</Text>
+                <Text style={styles.tabSectionSubtitle}>Update your personal preferences and contact details.</Text>
+                
+                <View style={styles.profileForm}>
+                  <InputField
+                    label="Name"
+                    value={profName}
+                    onChangeText={setProfName}
+                    placeholder="Your Name"
+                  />
+                  <InputField
+                    label="Email Address"
+                    value={user?.email || ''}
+                    editable={false}
+                  />
+                  <InputField
+                    label="City"
+                    value={profCity}
+                    onChangeText={setProfCity}
+                    placeholder="Your City"
+                  />
+                  <InputField
+                    label="Phone Number"
+                    value={profPhone}
+                    onChangeText={setProfPhone}
+                    placeholder="10-digit number"
+                    keyboardType="phone-pad"
+                  />
+                  <InputField
+                    label="Preferences / Interests"
+                    value={profPreferences}
+                    onChangeText={setProfPreferences}
+                    placeholder="e.g. food, tech, fashion"
+                  />
 
-            <View style={styles.profileForm}>
-              <InputField
-                label="Name"
-                value={profName}
-                onChangeText={setProfName}
-                placeholder="Your Name"
-              />
-              <InputField
-                label="City"
-                value={profCity}
-                onChangeText={setProfCity}
-                placeholder="Your City"
-              />
-              <InputField
-                label="Phone Number"
-                value={profPhone}
-                onChangeText={setProfPhone}
-                placeholder="10-digit number"
-                keyboardType="phone-pad"
-              />
-
-              <PrimaryButton
-                title="Update Details"
-                onPress={handleSaveProfile}
-                style={styles.profileSaveBtn}
-              />
-
-              <View style={styles.logoutWrapper}>
-                <Pressable onPress={logout} style={styles.logoutActionBtn}>
-                  <Text style={styles.logoutActionBtnText}>Log Out Account</Text>
-                </Pressable>
+                  {savingProfile ? (
+                    <ActivityIndicator size="large" color="#2563EB" style={{ marginVertical: 20 }} />
+                  ) : (
+                    <View style={styles.editProfileButtons}>
+                      <Pressable 
+                        onPress={handleSaveProfile} 
+                        style={({ pressed }) => [styles.primarySaveButton, pressed && { opacity: 0.8 }]}
+                      >
+                        <LinearGradient colors={['#2563EB', '#1D4ED8']} style={styles.buttonGradient}>
+                          <Text style={styles.saveButtonText}>Save Changes</Text>
+                        </LinearGradient>
+                      </Pressable>
+                      <Pressable 
+                        onPress={() => {
+                          setProfName(user?.name || '');
+                          setProfCity(user?.city || '');
+                          setProfPhone(user?.phone || '');
+                          setProfPreferences(user?.preferences || '');
+                          setIsEditingProfile(false);
+                        }} 
+                        style={({ pressed }) => [styles.secondaryCancelButton, pressed && { opacity: 0.8 }]}
+                      >
+                        <Text style={styles.cancelButtonText}>Cancel</Text>
+                      </Pressable>
+                    </View>
+                  )}
+                </View>
               </View>
-            </View>
+            ) : (
+              /* PREMIUM PROFILE DASHBOARD VIEW */
+              <View style={styles.profileDashboardContainer}>
+                {/* Premium Profile Header */}
+                <View style={styles.buyerProfileHeaderMinimal}>
+                  <Pressable onPress={handlePickProfileImage} style={styles.avatarContainer}>
+                    {profileImage ? (
+                      <Image source={{ uri: resolveMediaUrl(profileImage) }} style={styles.buyerAvatarImage} />
+                    ) : (
+                      <View style={styles.buyerAvatarFallback}>
+                        <Text style={styles.buyerAvatarFallbackText}>
+                          {(user?.name || 'B').charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={styles.cameraIconBadge}>
+                      <Ionicons name="camera" size={14} color="#FFF" />
+                    </View>
+                  </Pressable>
+
+                  <Text style={styles.buyerProfileNameTextMinimal}>{user?.name || 'Buyer Name'}</Text>
+                  <View style={styles.buyerLocationRowMinimal}>
+                    <Ionicons name="location" size={14} color="#2563EB" />
+                    <Text style={styles.buyerLocationTextMinimal}>{user?.city || 'City not set'}</Text>
+                  </View>
+                </View>
+
+                {/* Account Settings Card */}
+                <View style={styles.settingsCard}>
+                  <Text style={styles.cardHeaderTitle}>Account Settings</Text>
+                  
+                  {/* Edit Profile */}
+                  <Pressable 
+                    onPress={() => setIsEditingProfile(true)}
+                    style={({ pressed }) => [styles.settingsOptionRow, pressed && styles.settingsOptionPressed]}
+                  >
+                    <View style={styles.optionLeft}>
+                      <Ionicons name="person-outline" size={20} color="#2563EB" style={styles.optionIcon} />
+                      <Text style={styles.optionLabelText}>Edit Profile</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                  </Pressable>
+
+                  {/* Change Password */}
+                  <Pressable 
+                    onPress={() => navigation.navigate('ForgotPassword')}
+                    style={({ pressed }) => [styles.settingsOptionRow, pressed && styles.settingsOptionPressed]}
+                  >
+                    <View style={styles.optionLeft}>
+                      <Ionicons name="lock-closed-outline" size={20} color="#2563EB" style={styles.optionIcon} />
+                      <Text style={styles.optionLabelText}>Change Password</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                  </Pressable>
+
+                  {/* Help & Support */}
+                  <Pressable 
+                    onPress={() => Alert.alert('Help & Support', 'Reach us at support@reachlo.com for any queries.')}
+                    style={({ pressed }) => [styles.settingsOptionRow, pressed && styles.settingsOptionPressed]}
+                  >
+                    <View style={styles.optionLeft}>
+                      <Ionicons name="help-circle-outline" size={20} color="#2563EB" style={styles.optionIcon} />
+                      <Text style={styles.optionLabelText}>Help & Support</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                  </Pressable>
+
+                  {/* About Reachlo */}
+                  <Pressable 
+                    onPress={() => Alert.alert('About Reachlo', 'Version 1.0.0 (Premium). Grow Your Business with local offers.')}
+                    style={({ pressed }) => [styles.settingsOptionRow, pressed && styles.settingsOptionPressed]}
+                  >
+                    <View style={styles.optionLeft}>
+                      <Ionicons name="information-circle-outline" size={20} color="#2563EB" style={styles.optionIcon} />
+                      <Text style={styles.optionLabelText}>About Reachlo</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                  </Pressable>
+                </View>
+
+                {/* Logout Section */}
+                <View style={styles.buyerLogoutSection}>
+                  <Pressable 
+                    onPress={() => {
+                      Alert.alert(
+                        'Confirm Logout',
+                        'Are you sure you want to log out?',
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          { text: 'Log Out', style: 'destructive', onPress: logout }
+                        ]
+                      );
+                    }}
+                    style={({ pressed }) => [styles.buyerLogoutButton, pressed && { opacity: 0.8 }]}
+                  >
+                    <Ionicons name="log-out-outline" size={20} color="#EF4444" style={{ marginRight: 8 }} />
+                    <Text style={styles.buyerLogoutButtonText}>Log Out</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
           </ScrollView>
         )}
       </Animated.View>
@@ -2400,5 +2630,204 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 28,
     marginBottom: 10,
+  },
+  
+  // BUYER PROFILE REDESIGN STYLES
+  buyerProfileScrollContent: {
+    paddingBottom: 100,
+  },
+  profileDashboardContainer: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
+  buyerProfileHeaderMinimal: {
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  buyerAvatarImage: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+  },
+  buyerAvatarFallback: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  buyerAvatarFallbackText: {
+    fontSize: 40,
+    fontWeight: '800',
+    color: '#2563EB',
+  },
+  cameraIconBadge: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    backgroundColor: '#2563EB',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  buyerProfileNameTextMinimal: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#1E293B',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  buyerLocationRowMinimal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  buyerLocationTextMinimal: {
+    fontSize: 13,
+    color: '#1E40AF',
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  settingsCard: {
+    margin: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  cardHeaderTitle: {
+    fontSize: FONT_SIZES.SM,
+    fontWeight: FONT_WEIGHTS.BOLD,
+    color: '#1E293B',
+    marginBottom: 16,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  settingsOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  settingsOptionPressed: {
+    opacity: 0.7,
+    backgroundColor: '#F8FAFC',
+  },
+  optionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  optionIcon: {
+    marginRight: 12,
+    backgroundColor: '#EFF6FF',
+    padding: 8,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  optionLabelText: {
+    fontSize: FONT_SIZES.SM,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  buyerLogoutSection: {
+    marginHorizontal: 16,
+    marginBottom: 20,
+  },
+  buyerLogoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    paddingVertical: 14,
+    borderRadius: 20,
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  buyerLogoutButtonText: {
+    color: '#EF4444',
+    fontSize: FONT_SIZES.SM,
+    fontWeight: FONT_WEIGHTS.BOLD,
+  },
+  
+  // EDIT PROFILE MODE STYLES
+  editProfileContainer: {
+    padding: 20,
+  },
+  editProfileButtons: {
+    marginTop: 20,
+    gap: 12,
+  },
+  primarySaveButton: {
+    borderRadius: 18,
+    height: 50,
+    overflow: 'hidden',
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  buttonGradient: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  saveButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: FONT_SIZES.SM,
+  },
+  secondaryCancelButton: {
+    height: 50,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    color: '#64748B',
+    fontWeight: '700',
+    fontSize: FONT_SIZES.SM,
   },
 });

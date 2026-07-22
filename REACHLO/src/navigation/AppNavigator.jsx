@@ -12,11 +12,14 @@ import DiscoveryFeedScreen from '../screens/placeholders/DiscoveryFeedScreen';
 import AdminDashboardScreen from '../screens/placeholders/AdminDashboardScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import SellerProfileScreen from '../screens/placeholders/SellerProfileScreen';
+import SellerEditProfileScreen from '../screens/placeholders/SellerEditProfileScreen';
+import SellerEditBusinessScreen from '../screens/placeholders/SellerEditBusinessScreen';
 import AICampaignGenerateScreen from '../screens/placeholders/AICampaignGenerateScreen';
 import AIDraftReviewScreen from '../screens/placeholders/AIDraftReviewScreen';
 import ChatScreen from '../screens/placeholders/ChatScreen';
 import SellerMessagesScreen from '../screens/placeholders/SellerMessagesScreen';
 import BuyerInboxScreen from '../screens/placeholders/BuyerInboxScreen';
+import AllCategoriesScreen from '../screens/placeholders/AllCategoriesScreen';
 
 const Stack = createStackNavigator();
 
@@ -101,6 +104,16 @@ export default function AppNavigator() {
         component={SellerProfileScreen}
         options={{ cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS }}
       />
+      <Stack.Screen
+        name="SellerEditProfile"
+        component={SellerEditProfileScreen}
+        options={{ cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS }}
+      />
+      <Stack.Screen
+        name="SellerEditBusiness"
+        component={SellerEditBusinessScreen}
+        options={{ cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS }}
+      />
 
       {/* New AI Generation Flow */}
       <Stack.Screen
@@ -128,6 +141,11 @@ export default function AppNavigator() {
       <Stack.Screen
         name="BuyerInbox"
         component={BuyerInboxScreen}
+        options={{ cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS }}
+      />
+      <Stack.Screen
+        name="AllCategories"
+        component={AllCategoriesScreen}
         options={{ cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS }}
       />
     </Stack.Navigator>
