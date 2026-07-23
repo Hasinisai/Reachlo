@@ -122,7 +122,7 @@ const SERVICES_DATA = [
   {
     id: 'realestate',
     title: 'Real Estate',
-    icon: require('../../../assets/ICONS/CATEGORY/real_estate.png'),
+    icon: require('../../../assets/ICONS/CATEGORY/real_estate.jpg'),
     offersCount: 38,
     subServices: [
       'Property Sales',
@@ -136,7 +136,7 @@ const SERVICES_DATA = [
   {
     id: 'transport',
     title: 'Transport & Delivery',
-    icon: require('../../../assets/ICONS/CATEGORY/transport.png'),
+    icon: require('../../../assets/ICONS/CATEGORY/transport.jpg'),
     offersCount: 52,
     subServices: [
       'Peer-to-Peer Parcel Delivery',
@@ -150,7 +150,7 @@ const SERVICES_DATA = [
   {
     id: 'auto',
     title: 'Automotive',
-    icon: require('../../../assets/ICONS/CATEGORY/automotive.png'),
+    icon: require('../../../assets/ICONS/CATEGORY/automotive.jpg'),
     offersCount: 41,
     subServices: [
       'Car Service & Repair',
@@ -164,7 +164,7 @@ const SERVICES_DATA = [
   {
     id: 'finance',
     title: 'Finance',
-    icon: require('../../../assets/ICONS/CATEGORY/finance.png'),
+    icon: require('../../../assets/ICONS/CATEGORY/finance.jpg'),
     offersCount: 29,
     subServices: [
       'Tax Consultants',
@@ -178,7 +178,7 @@ const SERVICES_DATA = [
   {
     id: 'legal',
     title: 'Legal Services',
-    icon: require('../../../assets/ICONS/CATEGORY/legal.png'),
+    icon: require('../../../assets/ICONS/CATEGORY/legal.jpg'),
     offersCount: 18,
     subServices: [
       'Lawyers',
@@ -192,7 +192,7 @@ const SERVICES_DATA = [
   {
     id: 'home',
     title: 'Home Services',
-    icon: require('../../../assets/ICONS/CATEGORY/home_services.png'),
+    icon: require('../../../assets/ICONS/CATEGORY/home_services.jpg'),
     offersCount: 73,
     subServices: [
       'Electricians',
@@ -206,7 +206,7 @@ const SERVICES_DATA = [
   {
     id: 'travel',
     title: 'Travel & Tourism',
-    icon: require('../../../assets/ICONS/CATEGORY/travel.png'),
+    icon: require('../../../assets/ICONS/CATEGORY/travel.jpg'),
     offersCount: 34,
     subServices: [
       'Travel Agencies',
@@ -220,7 +220,7 @@ const SERVICES_DATA = [
   {
     id: 'shopping',
     title: 'Shopping & Retail',
-    icon: require('../../../assets/ICONS/CATEGORY/shopping.png'),
+    icon: require('../../../assets/ICONS/CATEGORY/shopping.jpg'),
     offersCount: 67,
     subServices: [
       'Clothing & Fashion',
