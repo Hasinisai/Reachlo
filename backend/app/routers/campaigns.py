@@ -396,6 +396,7 @@ def create_campaign(
         price=campaign_in.price,
         start_date=campaign_in.start_date.replace(tzinfo=None) if campaign_in.start_date else datetime.utcnow(),
         end_date=campaign_in.end_date.replace(tzinfo=None) if campaign_in.end_date else None,
+        target_cities=campaign_in.target_cities,
         # optional location fields
         location_address=getattr(campaign_in, 'location_address', None),
         latitude=getattr(campaign_in, 'latitude', None),

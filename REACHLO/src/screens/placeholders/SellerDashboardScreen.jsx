@@ -243,9 +243,49 @@ export default function SellerDashboardScreen({ navigation }) {
   const [campImageEmoji, setCampImageEmoji] = useState('🎁');
   const [campCategory, setCampCategory] = useState(CATEGORIES[0]);
   const [campSubCategory, setCampSubCategory] = useState(CATEGORY_MAP[CATEGORIES[0]][0]);
-  const [campCity, setCampCity] = useState(user?.city || 'Chennai');
-  const [citySearch, setCitySearch] = useState(user?.city || 'Chennai');
-  const [cityDropdownVisible, setCityDropdownVisible] = useState(false);
+  const [selectedCities, setSelectedCities] = useState([user?.city || 'Chennai']);
+  const [citySearchText, setCitySearchText] = useState('');
+  const [citySuggestions, setCitySuggestions] = useState([]);
+  const cityInputRef = useRef(null);
+  const ALL_INDIA_TAG = 'All over India';
+
+  const handleCitySearchChange = (text) => {
+    setCitySearchText(text);
+    if (text.trim().length < 2) {
+      setCitySuggestions([]);
+      return;
+    }
+    const lower = text.toLowerCase();
+    const matches = ALL_INDIA_CITIES.filter(
+      (c) =>
+        c.toLowerCase().startsWith(lower) &&
+        !selectedCities.includes(c) &&
+        !selectedCities.includes(ALL_INDIA_TAG)
+    ).slice(0, 6);
+    setCitySuggestions(matches);
+  };
+
+  const addCity = (city) => {
+    if (city === ALL_INDIA_TAG) {
+      setSelectedCities([ALL_INDIA_TAG]);
+    } else if (!selectedCities.includes(city) && !selectedCities.includes(ALL_INDIA_TAG)) {
+      setSelectedCities((prev) => [...prev, city]);
+    }
+    setCitySearchText('');
+    setCitySuggestions([]);
+  };
+
+  const removeCity = (city) => {
+    setSelectedCities((prev) => prev.filter((c) => c !== city));
+  };
+
+  const toggleAllIndia = () => {
+    if (selectedCities.includes(ALL_INDIA_TAG)) {
+      setSelectedCities([]);
+    } else {
+      setSelectedCities([ALL_INDIA_TAG]);
+    }
+  };
 
   // Date picker state
   const [showStartCalendar, setShowStartCalendar] = useState(false);
@@ -498,8 +538,9 @@ export default function SellerDashboardScreen({ navigation }) {
     setCampImageEmoji('🎁');
     setCampCategory(CATEGORIES[0]);
     setCampSubCategory(CATEGORY_MAP[CATEGORIES[0]][0]);
-    setCampCity(user?.city || 'Chennai');
-    setCitySearch(user?.city || 'Chennai');
+    setSelectedCities([user?.city || 'Chennai']);
+    setCitySearchText('');
+    setCitySuggestions([]);
     setCampPrice('');
     setCampImageMeta(null);
     setCropModalVisible(false);
@@ -539,8 +580,19 @@ export default function SellerDashboardScreen({ navigation }) {
       setCampSubCategory(CATEGORY_MAP[cat || CATEGORIES[0]]?.[0] || '');
     }
     
-    setCampCity(camp.city || 'Chennai');
-    setCitySearch(camp.city || 'Chennai');
+    let cities = [];
+    if (camp.target_cities) {
+      try {
+        cities = typeof camp.target_cities === 'string' ? JSON.parse(camp.target_cities) : camp.target_cities;
+      } catch (e) {
+        cities = [camp.city || 'Chennai'];
+      }
+    } else {
+      cities = [camp.city || 'Chennai'];
+    }
+    setSelectedCities(cities);
+    setCitySearchText('');
+    setCitySuggestions([]);
     setCampStartDate(camp.startDate || '');
     setCampEndDate(camp.endDate || '');
     setCampPrice(camp.price != null && camp.price > 0 ? String(camp.price) : '');
@@ -717,7 +769,7 @@ export default function SellerDashboardScreen({ navigation }) {
       !campDesc.trim() ||
       !campOfferLine.trim() ||
       !campCategory.trim() ||
-      !campCity.trim() ||
+      selectedCities.length === 0 ||
       !campStartDate.trim() ||
       !campEndDate.trim() ||
       campImages.length === 0
@@ -766,7 +818,7 @@ export default function SellerDashboardScreen({ navigation }) {
         description: campDesc.trim(),
         offer: campOfferLine.trim(),
         category: `${campCategory}::${campSubCategory}`,
-        city: campCity.trim(),
+        target_cities: selectedCities.length > 0 ? JSON.stringify(selectedCities) : null,
         image_url: uploadedUrls[0] || undefined,
         image_urls: uploadedUrls.length ? uploadedUrls : undefined,
         price: campPrice.trim() ? parseFloat(campPrice) : undefined,
@@ -957,7 +1009,7 @@ export default function SellerDashboardScreen({ navigation }) {
               >
                 {/* Card 1: Generate with AI (Placed first to emphasize) */}
                 <Pressable 
-                  onPress={() => navigation.navigate('AIGenerate')} 
+                  onPress={() => navigation.navigate('AICampaignGenerate')} 
                   style={{ width: 180, height: 140, borderRadius: 16, overflow: 'hidden' }}
                 >
                   <LinearGradient colors={['#38BDF8', '#1A73E8']} style={{ flex: 1, padding: 16, justifyContent: 'space-between' }}>
@@ -1092,142 +1144,180 @@ export default function SellerDashboardScreen({ navigation }) {
           )}
 
           {activeTab === 'Profile' && (
-            <>
-              {/* Profile Header */}
-              <View style={styles.profileHeaderPremium}>
-                <View style={styles.profileAvatarLarge}>
-                  <Text style={styles.profileAvatarLargeText}>{getFirstLetter(user?.name)}</Text>
-                  <View style={styles.editPhotoIconWrap}>
-                    <Text style={styles.editPhotoIcon}>✏️</Text>
-                  </View>
-                </View>
-                <Text style={styles.profileNamePremium}>{profName || 'Your Business'}</Text>
-                <Text style={styles.profileLocationPremium}>{profCity || 'Location'}</Text>
-                
-                <View style={styles.profileContactRow}>
-                  <Text style={styles.profileContactText}>✉ {user?.email || 'email@example.com'}</Text>
-                </View>
-                <View style={styles.profileContactRow}>
-                  <Text style={styles.profileContactText}>📞 {profPhone || 'Contact Number'}</Text>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.sellerProfileScrollContent}>
+              {/* Premium Profile Header */}
+              <View style={styles.sellerProfileHeaderMinimal}>
+                <View style={styles.sellerProfileGlassCard}>
+                  <Pressable onPress={async () => {
+                    try {
+                      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                      if (permission.status !== 'granted') {
+                        Alert.alert('Permission Required', 'Please allow access to your photo library to change your logo.');
+                        return;
+                      }
+                      const result = await ImagePicker.launchImageLibraryAsync({
+                        mediaTypes: ['images'],
+                        allowsEditing: true,
+                        aspect: [1, 1],
+                        quality: 0.8,
+                      });
+                      if (!result.canceled && result.assets?.length > 0) {
+                        const localUri = result.assets[0].uri;
+                        const uploadUrl = `${API_CONFIG.BASE_URL}/upload/image`;
+                        const headers = await apiService.getHeaders();
+                        const uploadRes = await FileSystem.uploadAsync(uploadUrl, localUri, {
+                          fieldName: 'file',
+                          httpMethod: 'POST',
+                          uploadType: 1,
+                          mimeType: 'image/jpeg',
+                          headers: headers,
+                        });
+                        if (uploadRes.status >= 200 && uploadRes.status < 300) {
+                          const data = JSON.parse(uploadRes.body);
+                          await apiService.request('/auth/me', {
+                            method: 'PATCH',
+                            body: { profile_picture: data.url },
+                          });
+                          if (updateUserProfile) {
+                            updateUserProfile({ profile_picture: data.url });
+                          }
+                          Alert.alert('Success', 'Business logo updated successfully!');
+                        }
+                      }
+                    } catch (e) {
+                      console.warn('Logo upload error:', e);
+                      Alert.alert('Error', 'Failed to upload logo.');
+                    }
+                  }} style={styles.sellerAvatarContainer}>
+                    {user?.profile_picture ? (
+                      <Image source={{ uri: resolveMediaUrl(user.profile_picture) }} style={styles.sellerAvatarImage} />
+                    ) : (
+                      <View style={styles.sellerAvatarFallback}>
+                        <Text style={styles.sellerAvatarFallbackText}>
+                          {(user?.name || 'S').charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={styles.sellerCameraIconBadge}>
+                      <Ionicons name="camera" size={12} color="#FFF" />
+                    </View>
+                  </Pressable>
+
+                  <Text style={styles.sellerProfileNameTextMinimal}>{user?.name || 'Seller Name'}</Text>
+                  <Text style={styles.sellerBusinessNameTextMinimal}>{businessName || 'Business Name'}</Text>
                 </View>
               </View>
 
-              <View style={styles.profileDivider} />
-
-              {/* Business Overview Stats Card */}
-              <Text style={styles.subsectionTitle}>📊 Business Overview</Text>
+              {/* Business Statistics Card */}
               <View style={styles.statsCardPremium}>
                 <View style={styles.statItemPremium}>
-                  <Text style={styles.statIconPremium}>👁</Text>
-                  <Text style={styles.statValuePremium}>{totalViews}</Text>
-                  <Text style={styles.statLabelPremium}>Views</Text>
+                  <View style={styles.statIconBadge}>
+                    <Ionicons name="megaphone-outline" size={20} color="#2563EB" />
+                  </View>
+                  <Text style={styles.statValuePremium}>{activeCount}</Text>
+                  <Text style={styles.statLabelPremium}>Campaigns</Text>
                 </View>
                 <View style={styles.statItemPremium}>
-                  <Text style={styles.statIconPremium}>🎯</Text>
+                  <View style={styles.statIconBadge}>
+                    <Ionicons name="people-outline" size={20} color="#059669" />
+                  </View>
                   <Text style={styles.statValuePremium}>{totalLeads}</Text>
                   <Text style={styles.statLabelPremium}>Leads</Text>
                 </View>
                 <View style={styles.statItemPremium}>
-                  <Text style={styles.statIconPremium}>📢</Text>
-                  <Text style={styles.statValuePremium}>{activeCount}</Text>
-                  <Text style={styles.statLabelPremium}>Campaigns</Text>
-                </View>
-              </View>
-
-              <View style={styles.profileDivider} />
-
-              {/* Business Information Card */}
-              <Text style={styles.subsectionTitle}>🏢 Business Information</Text>
-              <View style={styles.infoCardPremium}>
-                <View style={styles.infoInputWrap}>
-                  <Text style={styles.infoInputLabel}>Business Name</Text>
-                  <View style={styles.infoInputFieldWrap}>
-                    <Text style={styles.infoInputIcon}>🏢</Text>
-                    <TextInput
-                      value={profName}
-                      onChangeText={setProfName}
-                      placeholder="Enter business name"
-                      placeholderTextColor="#94A3B8"
-                      style={styles.infoInputText}
-                    />
+                  <View style={styles.statIconBadge}>
+                    <Ionicons name="eye-outline" size={20} color="#D97706" />
                   </View>
+                  <Text style={styles.statValuePremium}>{totalViews}</Text>
+                  <Text style={styles.statLabelPremium}>Views</Text>
                 </View>
+              </View>
 
-                <View style={styles.infoInputWrap}>
-                  <Text style={styles.infoInputLabel}>City</Text>
-                  <View style={styles.infoInputFieldWrap}>
-                    <Text style={styles.infoInputIcon}>📍</Text>
-                    <TextInput
-                      value={profCity}
-                      onChangeText={setProfCity}
-                      placeholder="Your City"
-                      placeholderTextColor="#94A3B8"
-                      style={styles.infoInputText}
-                    />
+              {/* Account Settings Section */}
+              <View style={styles.sellerSettingsCard}>
+                <Text style={styles.sellerCardHeaderTitle}>Account Settings</Text>
+
+                {/* Edit Profile */}
+                <Pressable 
+                  onPress={() => navigation.navigate('SellerEditProfile')}
+                  style={({ pressed }) => [styles.sellerOptionRow, pressed && styles.sellerOptionPressed]}
+                >
+                  <View style={styles.sellerOptionLeft}>
+                    <Ionicons name="person-outline" size={20} color="#2563EB" style={styles.sellerOptionIcon} />
+                    <Text style={styles.sellerOptionLabelText}>Edit Profile</Text>
                   </View>
-                </View>
+                  <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                </Pressable>
 
-                <View style={styles.infoInputWrap}>
-                  <Text style={styles.infoInputLabel}>Contact Number</Text>
-                  <View style={styles.infoInputFieldWrap}>
-                    <Text style={styles.infoInputIcon}>📞</Text>
-                    <TextInput
-                      value={profPhone}
-                      onChangeText={setProfPhone}
-                      placeholder="10-digit mobile number"
-                      placeholderTextColor="#94A3B8"
-                      keyboardType="phone-pad"
-                      style={styles.infoInputText}
-                    />
+                {/* Change Password */}
+                <Pressable 
+                  onPress={() => navigation.navigate('ForgotPassword')}
+                  style={({ pressed }) => [styles.sellerOptionRow, pressed && styles.sellerOptionPressed]}
+                >
+                  <View style={styles.sellerOptionLeft}>
+                    <Ionicons name="lock-closed-outline" size={20} color="#2563EB" style={styles.sellerOptionIcon} />
+                    <Text style={styles.sellerOptionLabelText}>Change Password</Text>
                   </View>
-                </View>
+                  <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                </Pressable>
 
-                <Pressable onPress={handleSaveProfile} style={styles.saveChangesBtnWrap}>
-                  <LinearGradient
-                    colors={['#29B6FF', '#2979FF']}
-                    style={styles.saveChangesBtnGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                  >
-                    <Text style={styles.saveChangesBtnText}>Save Changes</Text>
-                  </LinearGradient>
+                {/* Edit Business Details */}
+                <Pressable 
+                  onPress={() => navigation.navigate('SellerEditBusiness')}
+                  style={({ pressed }) => [styles.sellerOptionRow, pressed && styles.sellerOptionPressed]}
+                >
+                  <View style={styles.sellerOptionLeft}>
+                    <Ionicons name="business-outline" size={20} color="#2563EB" style={styles.sellerOptionIcon} />
+                    <Text style={styles.sellerOptionLabelText}>Edit Business Details</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                </Pressable>
+
+                {/* Help & Support */}
+                <Pressable 
+                  onPress={() => Alert.alert('Help & Support', 'For seller assistance, email partner@reachlo.com')}
+                  style={({ pressed }) => [styles.sellerOptionRow, pressed && styles.sellerOptionPressed]}
+                >
+                  <View style={styles.sellerOptionLeft}>
+                    <Ionicons name="help-circle-outline" size={20} color="#2563EB" style={styles.sellerOptionIcon} />
+                    <Text style={styles.sellerOptionLabelText}>Help & Support</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                </Pressable>
+
+                {/* About Reachlo */}
+                <Pressable 
+                  onPress={() => Alert.alert('About Reachlo', 'Reachlo Seller Dashboard v1.0.0. Grow Your Business.')}
+                  style={({ pressed }) => [styles.sellerOptionRow, pressed && styles.sellerOptionPressed]}
+                >
+                  <View style={styles.sellerOptionLeft}>
+                    <Ionicons name="information-circle-outline" size={20} color="#2563EB" style={styles.sellerOptionIcon} />
+                    <Text style={styles.sellerOptionLabelText}>About Reachlo</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
                 </Pressable>
               </View>
 
-              <View style={styles.profileDivider} />
-
-              {/* Settings */}
-              <Text style={styles.subsectionTitle}>⚙ Settings</Text>
-              <View style={styles.settingsListPremium}>
-                <Pressable style={styles.settingsRowPremium}>
-                  <Text style={styles.settingsRowIcon}>🔔</Text>
-                  <Text style={styles.settingsRowText}>Notifications</Text>
-                  <Text style={styles.settingsRowArrow}>›</Text>
-                </Pressable>
-                <Pressable style={styles.settingsRowPremium}>
-                  <Text style={styles.settingsRowIcon}>🌙</Text>
-                  <Text style={styles.settingsRowText}>Dark Mode</Text>
-                  <Text style={styles.settingsRowArrow}>›</Text>
-                </Pressable>
-                <Pressable style={styles.settingsRowPremium}>
-                  <Text style={styles.settingsRowIcon}>🔐</Text>
-                  <Text style={styles.settingsRowText}>Privacy & Password</Text>
-                  <Text style={styles.settingsRowArrow}>›</Text>
-                </Pressable>
-                <Pressable style={styles.settingsRowPremium}>
-                  <Text style={styles.settingsRowIcon}>❓</Text>
-                  <Text style={styles.settingsRowText}>Help & Support</Text>
-                  <Text style={styles.settingsRowArrow}>›</Text>
+              {/* Logout Section */}
+              <View style={styles.sellerLogoutSection}>
+                <Pressable 
+                  onPress={() => {
+                    Alert.alert(
+                      'Confirm Logout',
+                      'Are you sure you want to log out?',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Log Out', style: 'destructive', onPress: logout }
+                      ]
+                    );
+                  }}
+                  style={({ pressed }) => [styles.sellerLogoutButton, pressed && { opacity: 0.8 }]}
+                >
+                  <Ionicons name="log-out-outline" size={20} color="#EF4444" style={{ marginRight: 8 }} />
+                  <Text style={styles.sellerLogoutButtonText}>Log Out</Text>
                 </Pressable>
               </View>
-
-              {/* Logout */}
-              <View style={styles.logoutWrapPremium}>
-                <Pressable onPress={logout} style={styles.logoutBtnPremium}>
-                  <Text style={styles.logoutBtnTextPremium}>🚪 Logout</Text>
-                </Pressable>
-              </View>
-            </>
+            </ScrollView>
           )}
         </ScrollView>
       </Animated.View>
@@ -1729,43 +1819,81 @@ export default function SellerDashboardScreen({ navigation }) {
                       ))}
                     </View>
 
-                    <Text style={styles.premiumLabel}>Target City</Text>
+                    <Text style={styles.premiumLabel}>Target Cities</Text>
                     <View style={styles.cardInput}>
-                      <TextInput
-                        value={citySearch}
-                        onChangeText={(text) => {
-                          setCitySearch(text);
-                          setCityDropdownVisible(text.length > 0);
-                        }}
-                        placeholder="Type to search Indian city..."
-                        placeholderTextColor="#94A3B8"
-                        style={styles.cardInputField}
-                        onFocus={() => setCityDropdownVisible(citySearch.length > 0)}
-                        onBlur={() => setTimeout(() => setCityDropdownVisible(false), 200)}
-                      />
-                      {campCity ? (
-                        <Text style={styles.citySelectedHint}>Selected: {campCity}</Text>
-                      ) : null}
-                      {cityDropdownVisible && (
-                        <View style={styles.cityDropdown}>
-                          <ScrollView keyboardShouldPersistTaps="handled" nestedScrollEnabled>
-                            {ALL_INDIA_CITIES
-                              .filter((c) => c.toLowerCase().startsWith(citySearch.toLowerCase()))
-                              .slice(0, 10)
-                              .map((city) => (
+                      {/* All over India toggle */}
+                      <Pressable
+                        style={[
+                          styles.allIndiaBtn,
+                          selectedCities.includes(ALL_INDIA_TAG) && styles.allIndiaBtnActive
+                        ]}
+                        onPress={toggleAllIndia}
+                      >
+                        <Ionicons
+                          name={selectedCities.includes(ALL_INDIA_TAG) ? 'checkmark-circle' : 'earth-outline'}
+                          size={16}
+                          color={selectedCities.includes(ALL_INDIA_TAG) ? '#FFFFFF' : '#2563EB'}
+                          style={{ marginRight: 6 }}
+                        />
+                        <Text style={[
+                          styles.allIndiaBtnText,
+                          selectedCities.includes(ALL_INDIA_TAG) && styles.allIndiaBtnTextActive
+                        ]}>
+                          All over India
+                        </Text>
+                      </Pressable>
+
+                      {/* Selected city tags */}
+                      {selectedCities.length > 0 && !selectedCities.includes(ALL_INDIA_TAG) && (
+                        <View style={styles.tagsContainer}>
+                          {selectedCities.map((city) => (
+                            <View key={city} style={styles.cityTag}>
+                              <Text style={styles.cityTagText}>{city}</Text>
+                              <Pressable onPress={() => removeCity(city)} hitSlop={6}>
+                                <Ionicons name="close-circle" size={16} color="#2563EB" style={{ marginLeft: 4 }} />
+                              </Pressable>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+
+                      {/* City search input */}
+                      {!selectedCities.includes(ALL_INDIA_TAG) && (
+                        <View style={styles.citySearchWrapper}>
+                          <View style={styles.citySearchBar}>
+                            <Ionicons name="search-outline" size={16} color="#94A3B8" style={{ marginRight: 8 }} />
+                            <TextInput
+                              ref={cityInputRef}
+                              style={styles.citySearchInput}
+                              placeholder="Type a city name, e.g. Chennai..."
+                              placeholderTextColor="#94A3B8"
+                              value={citySearchText}
+                              onChangeText={handleCitySearchChange}
+                              returnKeyType="done"
+                              onSubmitEditing={() => {
+                                const match = ALL_INDIA_CITIES.find(
+                                  (c) => c.toLowerCase() === citySearchText.trim().toLowerCase()
+                                );
+                                if (match) addCity(match);
+                              }}
+                            />
+                          </View>
+
+                          {/* Suggestions dropdown */}
+                          {citySuggestions.length > 0 && (
+                            <View style={styles.suggestionsBox}>
+                              {citySuggestions.map((city) => (
                                 <Pressable
                                   key={city}
-                                  onPress={() => {
-                                    setCampCity(city);
-                                    setCitySearch(city);
-                                    setCityDropdownVisible(false);
-                                  }}
-                                  style={styles.cityDropdownItem}
+                                  style={styles.suggestionItem}
+                                  onPress={() => addCity(city)}
                                 >
-                                  <Text style={styles.cityDropdownText}>{city}</Text>
+                                  <Ionicons name="location-outline" size={14} color="#2563EB" style={{ marginRight: 8 }} />
+                                  <Text style={styles.suggestionText}>{city}</Text>
                                 </Pressable>
                               ))}
-                          </ScrollView>
+                            </View>
+                          )}
                         </View>
                       )}
                     </View>
@@ -4175,5 +4303,269 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
     flexShrink: 1,
+  },
+  
+  // --- SELLER PROFILE REDESIGN STYLES ---
+  sellerProfileScrollContent: {
+    paddingBottom: 120,
+  },
+  sellerProfileHeaderMinimal: {
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    backgroundColor: '#F8FAFC',
+  },
+  sellerProfileGlassCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    borderRadius: 24,
+    paddingVertical: 28,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.04,
+    shadowRadius: 16,
+    elevation: 3,
+  },
+  sellerAvatarContainer: {
+    position: 'relative',
+    marginBottom: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  sellerAvatarImage: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+  },
+  sellerAvatarFallback: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sellerAvatarFallbackText: {
+    fontSize: 40,
+    fontWeight: '800',
+    color: '#2563EB',
+  },
+  sellerCameraIconBadge: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    backgroundColor: '#2563EB',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  sellerProfileNameTextMinimal: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#1E293B',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  sellerBusinessNameTextMinimal: {
+    fontSize: 15,
+    color: '#64748B',
+    fontWeight: '600',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  statIconBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#F8FAFC',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  sellerSettingsCard: {
+    margin: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  sellerCardHeaderTitle: {
+    fontSize: 12,
+    fontWeight: FONT_WEIGHTS.BOLD,
+    color: '#1E293B',
+    marginBottom: 16,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  sellerOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  sellerOptionPressed: {
+    opacity: 0.7,
+    backgroundColor: '#F8FAFC',
+  },
+  sellerOptionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  sellerOptionIcon: {
+    marginRight: 12,
+    backgroundColor: '#EFF6FF',
+    padding: 8,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  sellerOptionLabelText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  sellerLogoutSection: {
+    marginHorizontal: 16,
+    marginBottom: 20,
+  },
+  sellerLogoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    paddingVertical: 14,
+    borderRadius: 20,
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  sellerLogoutButtonText: {
+    color: '#EF4444',
+    fontSize: 14,
+    fontWeight: FONT_WEIGHTS.BOLD,
+  },
+  
+  // --- TARGET CITIES MULTI-SELECT STYLES ---
+  allIndiaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#2563EB',
+    backgroundColor: '#EFF6FF',
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  allIndiaBtnActive: {
+    backgroundColor: '#2563EB',
+    borderColor: '#2563EB',
+  },
+  allIndiaBtnText: {
+    fontSize: FONT_SIZES.SM,
+    fontWeight: FONT_WEIGHTS.SEMIBOLD,
+    color: '#2563EB',
+  },
+  allIndiaBtnTextActive: {
+    color: '#FFFFFF',
+  },
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  cityTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  cityTagText: {
+    fontSize: FONT_SIZES.SM,
+    color: '#1E40AF',
+    fontWeight: FONT_WEIGHTS.MEDIUM,
+  },
+  citySearchWrapper: {
+    position: 'relative',
+    zIndex: 10,
+  },
+  citySearchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginTop: 4,
+  },
+  citySearchInput: {
+    flex: 1,
+    fontSize: FONT_SIZES.SM,
+    color: '#0F172A',
+    padding: 0,
+  },
+  suggestionsBox: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    marginTop: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 6,
+    zIndex: 100,
+    overflow: 'hidden',
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  suggestionText: {
+    fontSize: FONT_SIZES.SM,
+    color: '#0F172A',
   },
 });
