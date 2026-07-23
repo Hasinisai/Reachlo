@@ -406,10 +406,10 @@ def _call_gemini(
         raise ValueError("GEMINI_API_KEY is not configured")
 
     models_to_try = [
-        "gemini-2.5-pro",         # Pro tier — highest quality for campaign generation
-        "gemini-2.5-flash",       # Fast + capable, great for all prompts
-        "gemini-2.0-flash",       # Reliable fallback
-        "gemini-flash-latest",    # Latest stable alias
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-flash-latest"
     ]
 
     contents = [{"role": "user", "parts": [{"text": prompt}]}]
