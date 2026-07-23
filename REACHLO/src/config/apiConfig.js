@@ -54,10 +54,14 @@ if (__DEV__) {
 
 // NOTE: If using a PHYSICAL device with Expo Go, replace DEV_HOST 
 // below with your computer's local Wi-Fi IP address (e.g. '192.168.1.100')
+const LIVE_BASE_URL = 'https://reachlo-backend.onrender.com/api';
+const LIVE_MEDIA_BASE_URL = 'https://reachlo-backend.onrender.com';
+const LIVE_WS_BASE_URL = 'wss://reachlo-backend.onrender.com/api';
+
 export const API_CONFIG = {
-  BASE_URL: BASE_URL,
-  MEDIA_BASE_URL: MEDIA_BASE_URL,
-  WS_BASE_URL: WS_BASE_URL,
+  BASE_URL: LIVE_BASE_URL,
+  MEDIA_BASE_URL: LIVE_MEDIA_BASE_URL,
+  WS_BASE_URL: LIVE_WS_BASE_URL,
   TIMEOUT: 60000,
 };
 
