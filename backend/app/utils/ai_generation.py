@@ -406,10 +406,9 @@ def _call_gemini(
         raise ValueError("GEMINI_API_KEY is not configured")
 
     models_to_try = [
-        "gemini-2.5-flash",
         "gemini-2.0-flash",
-        "gemini-2.5-flash-lite",
-        "gemini-flash-latest"
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-8b",
     ]
 
     contents = [{"role": "user", "parts": [{"text": prompt}]}]
