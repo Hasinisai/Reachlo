@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, Component } from 'react';
 import {
   View,
   Text,
@@ -38,8 +38,56 @@ import CampaignFeedCard from '../../components/CampaignFeedCard';
 import PlacesAutocompleteProxy from '../../components/PlacesAutocompleteProxy';
 import PlacesAdjustMap from '../../components/PlacesAdjustMap';
 import { truncateChipLabel } from '../../constants/campaignCardConstants';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+// ── Error boundary to prevent MapView crash from killing the whole screen ──
+class MiniMapErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error) {
+    console.warn('SellerDashboard MapView error caught by boundary:', error?.message);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ height: 120, borderRadius: 12, backgroundColor: '#E2E8F0', alignItems: 'center', justifyContent: 'center' }}>
+          <Ionicons name="map-outline" size={24} color="#94A3B8" />
+          <Text style={{ color: '#64748B', fontSize: 12, marginTop: 4 }}>Map unavailable</Text>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function SafeMiniMapView({ latitude, longitude }) {
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  const valid = !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0 && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+  if (!valid) return null;
+  return (
+    <MiniMapErrorBoundary>
+      <MapView
+        provider={PROVIDER_GOOGLE}
+        style={{ height: 120, borderRadius: 12 }}
+        region={{ latitude: lat, longitude: lng, latitudeDelta: 0.002, longitudeDelta: 0.002 }}
+        pointerEvents="none"
+        scrollEnabled={false}
+        zoomEnabled={false}
+        liteMode={true}
+      >
+        <Marker coordinate={{ latitude: lat, longitude: lng }} pinColor="#2563EB" />
+      </MapView>
+    </MiniMapErrorBoundary>
+  );
+}
 
 const PREMIUM_COLORS = {
   PRIMARY: '#2563EB',
@@ -50,7 +98,7 @@ const PREMIUM_COLORS = {
   SUCCESS: '#22C55E',
 };
 
-import MapView, { Marker } from 'react-native-maps';
+
 
 const CATEGORY_MAP = {
   'IT & Technology Services': ['Website Development', 'Mobile App Development', 'UI/UX Design', 'Software Development', 'Cloud Consulting', 'Cybersecurity Services'],
@@ -441,7 +489,8 @@ export default function SellerDashboardScreen({ navigation }) {
       navigation.navigate('ChatScreen', { 
         threadId: thread.id, 
         campaign: campaign, 
-        business: { name: lead.name } // Buyer's name
+        // Pass buyer info so ChatScreen header shows actual buyer name (not fallback "Buyer")
+        buyer: { name: lead.name, phone: lead.phone },
       });
     } catch (e) {
       console.log('Failed to open chat', e);
@@ -637,7 +686,7 @@ export default function SellerDashboardScreen({ navigation }) {
   };
 
   const validateStep2 = () => {
-    if (!campCategory.trim() || !campSubCategory.trim() || !campCity.trim()) {
+    if (!campCategory.trim() || !campSubCategory.trim() || selectedCities.length === 0) {
       Alert.alert('Audience Required', 'Please select category, subcategory, and target city');
       return false;
     }
@@ -1743,19 +1792,7 @@ export default function SellerDashboardScreen({ navigation }) {
 
                                         {locationSelected && locationLat && locationLon && (
                                           <View style={styles.miniMapWrapper}>
-                                            <MapView
-                                              style={styles.miniMap}
-                                              region={{
-                                                latitude: locationLat,
-                                                longitude: locationLon,
-                                                latitudeDelta: 0.002,
-                                                longitudeDelta: 0.002,
-                                              }}
-                                              pointerEvents="none"
-                                            >
-                                              <Marker coordinate={{ latitude: locationLat, longitude: locationLon }} pinColor="#2563EB" />
-                                            </MapView>
-
+                                            <SafeMiniMapView latitude={locationLat} longitude={locationLon} />
                                           </View>
                                         )}
                                       </BlurView>
@@ -2022,7 +2059,7 @@ export default function SellerDashboardScreen({ navigation }) {
                         description: campDesc,
                         businessName: businessName || `${user?.name || 'Your'} Business`,
                         businessVerified: businessVerified,
-                        city: campCity,
+                        city: selectedCities.length > 0 ? selectedCities.join(', ') : '',
                         endDate: campEndDate,
                         price: campPrice ? parseFloat(campPrice) : 0,
                         imageUrl: campImages[0]?.uri,
