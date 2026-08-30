@@ -1,0 +1,92 @@
+export const lightColors = {
+  // === PRIMARY BRAND ===
+  PRIMARY: '#5B5FEF', 
+  PRIMARY_LIGHT: '#8084FF',
+  PRIMARY_DARK: '#4245C2',
+  PRIMARY_ULTRA_LIGHT: '#EEF0FF',
+
+  // === SECONDARY & ACCENT ===
+  SECONDARY: '#7C4DFF',
+  ACCENT: '#FFB800',
+  ACCENT_PURPLE: '#6366F1',   
+  ACCENT_CYAN: '#06B6D4',     
+
+  // === BACKGROUNDS ===
+  BACKGROUND: '#F8FAFC',
+  SURFACE: '#F1F5F9',
+  SURFACE_2: '#E2E8F0',
+  CARD: '#FFFFFF',
+
+  // === GLASSMORPHISM ===
+  GLASS_BACKGROUND: 'rgba(255, 255, 255, 0.65)',
+  GLASS_BACKGROUND_LIGHT: 'rgba(255, 255, 255, 0.85)',
+  GLASS_BORDER: 'rgba(255, 255, 255, 0.4)',
+  GLASS_BORDER_LIGHT: 'rgba(255, 255, 255, 0.7)',
+
+  // === TEXT ===
+  TEXT_PRIMARY: '#111827',
+  TEXT_SECONDARY: '#6B7280',
+  TEXT_PLACEHOLDER: '#9CA3AF',
+
+  // === BORDERS ===
+  BORDER: '#E2E8F0',
+  BORDER_FOCUS: '#5B5FEF',
+
+  // === STATUS ===
+  ERROR: '#EF4444',
+  SUCCESS: '#22C55E',
+  WARNING: '#FFB800',
+
+  // === ROLES ===
+  // Seller — pale purple palette (professional, muted, modern)
+  SELLER_PRIMARY: '#7C6FF7',
+  SELLER_PRIMARY_LIGHT: '#A89CF9',
+  SELLER_PRIMARY_DARK: '#5A4EDB',
+  SELLER_SURFACE: '#F5F3FF',
+  SELLER_SURFACE_STRONG: '#EDE9FE',
+  SELLER_BORDER: '#DDD6FE',
+  SELLER_ACCENT: '#8B5CF6',
+  SELLER_TEXT: '#3B3565',
+  // Buyer
+  BUYER_ACCENT: '#7C4DFF',
+  BUYER_ACCENT_DARK: '#5A32CC',
+  BUYER_ACCENT_LIGHT: '#9D7DFF',
+  BUYER_SURFACE: '#F3EFFF',
+  BUYER_SURFACE_STRONG: '#E7DCFF',
+  BUYER_BORDER: '#D1BFFF',
+
+  // === MISC ===
+  WHITE: '#FFFFFF',
+  OVERLAY: 'rgba(17, 24, 39, 0.45)', 
+};
+
+export const darkColors = {
+  ...lightColors,
+  
+  BACKGROUND: '#111827',
+  SURFACE: '#1F2937',
+  SURFACE_2: '#374151',
+  CARD: '#1F2937',
+
+  GLASS_BACKGROUND: 'rgba(31, 41, 55, 0.65)',
+  GLASS_BACKGROUND_LIGHT: 'rgba(31, 41, 55, 0.85)',
+  GLASS_BORDER: 'rgba(55, 65, 81, 0.4)',
+  GLASS_BORDER_LIGHT: 'rgba(55, 65, 81, 0.7)',
+
+  TEXT_PRIMARY: '#F9FAFB',
+  TEXT_SECONDARY: '#9CA3AF',
+  TEXT_PLACEHOLDER: '#6B7280',
+
+  BORDER: '#374151',
+  
+  BUYER_SURFACE: '#3730A3',
+  BUYER_SURFACE_STRONG: '#4338CA',
+  BUYER_BORDER: '#4F46E5',
+
+  OVERLAY: 'rgba(0, 0, 0, 0.7)', 
+};
+
+// Fallback to light colors for places not yet using the theme context
+export const COLORS = lightColors;
+
+export default COLORS;
